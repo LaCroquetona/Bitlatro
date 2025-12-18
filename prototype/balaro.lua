@@ -3,14 +3,14 @@
 -- desc:    short description
 -- site:    website link
 -- license: MIT License 
--- version: 0.0.0
+-- version: 0.0.1
 -- script:  lua
 
 --== VARIABLES ==--
 hand=8
 values={1,13,12,11,10,9,8,7,6,5,4,3,2}
 cardsinhand={}
-cursor={79,120,0,0}
+cursor={79,120,0,0} --{x,y,select}
 play={}
 hands={{1,5,1,"High"},{1,10,2,"Pair"},{1,20,2,"Two Pair"},{1,30,3,"Three"},{1,30,4,"Straight"},{1,35,4,"Flush"},{1,40,4,"Full House"},{1,60,7,"Four"},{1,100,8,"Straight Flush"},{1,120,12,"Royal Flush"},{0,0,0,""}}
 
@@ -24,7 +24,7 @@ function pop(t,o)for i=1,#t do if t[i]==o then table.remove(t,i)break end end en
 function find(t,o) for i=1,#t do if t[i]==o then return i end end end
 
 
---== MINI-FONT ==--
+--== MINI-FONT ==--#
 mini_font = {
  A = {"010","101","111","101","101"},
  B = {"110","101","110","101","110"},
@@ -99,7 +99,7 @@ function print_Box(x,y,px,py,c)
 			elseif iy==0 or iy==y-1 or ix==0 or ix==x-1 then spr(s-16,sx,sy,0,1)
 end end end end
 
---== MAZO ==--
+--== MAZO ==--#
 function make_deck()
  local d={}
  for s=0,3 do for i=1,#values do add(d,{values[i],s,0,0,0,0,0}) end end
@@ -195,10 +195,12 @@ function TIC()
  map(0,0,30,17)
  print_Box(3,1,10,32,0)
  print_Box(4,1,38,32,1)
- --Cursor--
+ print_Box(4,1,200,90,0)
+ print_Box(4,1,200,110,1)
+ --Cursor----COMPRUEBA EN BLOQUE 
  spr(240,cursor[1],cursor[2],1)
  if btnp(3) and cursor[3]<hand-1 then cursor[1]=cursor[1]+15 cursor[3]=cursor[3]+1
- elseif btnp(2) and cursor[3]>0 then cursor[1]=cursor[1]-15 cursor[3]=cursor[3]-1 end
+ elseif btnp(2) and cursor[3]>0 and cursor then cursor[1]=cursor[1]-15 cursor[3]=cursor[3]-1 end
  if #cardsinhand>cursor[3] then
   local c=cardsinhand[cursor[3]+1]
   if btnp(4) then
@@ -224,7 +226,6 @@ function TIC()
  	for i = 1, #play do
   	p=find(cardsinhand,play[i])
   	pop(cardsinhand,play[i])
-   -- insertar carta en blanco en posicion p
   end
  	print_cards(75,70,play)
  	draw_text(tostring(hands[hand_type][2]),12,34,12)
