@@ -2,7 +2,7 @@
 # author:  La_Croquetona.
 # desc:    this is a compact version of Balatro taking my own liberties. 
 # license: MIT License (change this to your license of choice)
-# version: 0.1.0
+# version: 0.1.1
 # script:  python
 
 import random
@@ -187,7 +187,7 @@ class Boton:
   x = self.x
   y = self.y 
 
-  if mb == 1:  
+  if mb:  # mouse()[2] es bool
    if (mx >= x and mx < x + self.w * 8 and my >= y and my < y + self.h * 8):
     return True
  
@@ -326,26 +326,29 @@ class Mazo:
   random.shuffle(self.cartas)
  #ordenar#
  def ordenar(self):
-  x=[]
-  for f in sorted(self.cartas,key=lambda x: x.va):
-   x.append(f)
-  self.cartas=x
+  self.cartas.sort(key=lambda c: c.va)
  #repartir#
  def repartir(self):
-  while len(hand)<handsize:
-   x=random.randint(0,len(hand))
-   hand.append(self.cartas[x])
-   self.cartas.pop(x)
+  # Mazo ya mezclado: pop(0) equivale a robar carta aleatoria.
+  # Si el mazo se vacia, paramos sin crashear.
+  while len(hand)<handsize and len(self.cartas)>0:
+   hand.append(self.cartas.pop(0))
   hand.sort(key=lambda c: c.va)
 
 
 #-Print Cards-#
-def print_cards(x,y,xf,list,sel):
+def print_cards(x,y,xf,cards,sel):
+ # Guardas para listas vacias o de 1 elemento (evita div/0)
+ if len(cards)==0:
+  return
  con=0#contador cartas
- sep=(xf-x-17)/(len(list)-1)#separacion
+ if len(cards)==1:
+  sep=0
+ else:
+  sep=(xf-x-17)/(len(cards)-1)#separacion
  dec=0
  
- for i in list:
+ for i in cards:
   dec+=sep-int(sep)
   xc=x+con*int(sep)+int(dec)
   onda1=math.sin((time()+i.an)/250)*0.75
@@ -404,8 +407,10 @@ def eval_hand():
   if i.sel:
    a.append(i)
  
+ # WIP: conteo de repetidos para detectar pares/tridos/etc.
+ # Aun no se usa, pero ya no crashea.
  rep = [[i, 0] for i in range(1, 14)]
- for i in numeros :
+ for i in a:
   for j in rep :
    if i.va == j[0]:
     j[1]+=1
@@ -466,22 +471,21 @@ def TIC():
   
   baraja.mostrar(64,64,2,True,102,70)
   
-  prev=Boton(" <",1,100,95,3,2,True)
-  prev.pintar()
-  if prev.clicado()and not Clk0:
-   DS-=1
+  # Solo recreamos baraja cuando DS cambia, no cada frame
+  prev_DS=DS
   
-  next=Boton(" >",0,150,95,3,2,True)
-  next.pintar()
-  if next.clicado()and not Clk0:
-   DS+=1
+  btn_prev=Boton(" <",1,100,95,3,2,True)
+  btn_prev.pintar()
+  if btn_prev.clicado()and not Clk0:
+   DS=(DS-1)%8
   
+  btn_next=Boton(" >",0,150,95,3,2,True)
+  btn_next.pintar()
+  if btn_next.clicado()and not Clk0:
+   DS=(DS+1)%8
   
-  if DS>7:
-   DS=0
-  if DS<0:
-   DS=7
-  baraja=Mazo(DS)
+  if DS!=prev_DS:
+   baraja=Mazo(DS)
   
   play=Boton("play",4,125,95,3,2,True)
   play.pintar()
@@ -551,8 +555,8 @@ def TIC():
   
   baraja.mostrar(216,104,1,False,0,0)
 
-  
-  if raton[0]>216 and raton[0]<232 and raton[1]>104 and raton[1]<128 and raton[2]==True:
+  # Click en la pila del mazo: ahora con debounce Clk0
+  if raton[0]>216 and raton[0]<232 and raton[1]>104 and raton[1]<128 and raton[2] and not Clk0:
    gm=2
    baraja.ordenar() 
   Clk0=raton[2]
@@ -565,14 +569,10 @@ def TIC():
   
   
   if total.clicado() and pal=="actual"and not Clk0:
-   baraja.cartas
    pal="total"
   
   elif total.clicado()and not Clk0:
-   baraja.total
    pal="actual"
-  
-  Clk0=raton[2]
   
   
   baraja.mostrar(12,12,2,False,30,65)
@@ -652,6 +652,9 @@ def TIC():
   print_cards(60,60,227,tr,False)
   print_cards(60,83,227,co,False)
   
-  if raton[0]>12 and raton[0]<44 and raton[1]>20 and raton[1]<68 and raton[2]==True:
+  # Click en el mazo para volver: ahora con debounce Clk0
+  if raton[0]>12 and raton[0]<44 and raton[1]>20 and raton[1]<68 and raton[2] and not Clk0:
    gm=1
    baraja.mezclar()
+  
+  Clk0=raton[2]
