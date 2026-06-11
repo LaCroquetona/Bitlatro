@@ -2,7 +2,7 @@
 # author:  Croquetona
 # desc:    this is a compact version of Balatro
 # license: MIT License (change this to your license of choice)
-# version: 0.4.0
+# version: 0.4.1
 # script:  python
 
 import random
@@ -111,8 +111,6 @@ gs={
  "sel_joker":-1,"sel_consu":-1,
 }
 
-DEBUG=True
-
 E_RISE=0
 E_OPLAY=1
 E_CSCORE=2
@@ -166,6 +164,11 @@ F_HAND_SIZE=40
 F_BONES=41
 F_FREE_REROLL=42
 F_XMUL_PER_EF=43
+F_EOR_SV=44
+F_MIDAS=45
+F_GTICK=46
+F_VAMP=47
+F_LUCKY=48
 
 J_GROS=20
 J_CAVE=30
@@ -237,50 +240,50 @@ CASH_SPEED=2
 CASH_WAIT=20
 
 JDEFS=[
- ("Joker",F_FMUL,4), #F S 0
- ("Jolly Joker",F_HMUL,8,H_PAR), #F S
- ("Zany Joker",F_HMUL,12,H_TRI), #F S
- ("Mad Joker",F_HMUL,10,H_DPA), #F S
- ("Crazy Joker",F_HMUL,12,H_ESC), #F S
- ("Droll Joker",F_HMUL,10,H_COL), #F S 5
- ("Sly Joker",F_HCHP,50,H_PAR), #F S
- ("Wily Joker",F_HCHP,100,H_TRI), #F S
- ("Clever Joker",F_HCHP,80,H_DPA), #F S
- ("Devious Joker",F_HCHP,100,H_ESC), #F S
- ("Crafty Joker",F_HCHP,80,H_COL), #F S 10
- ("Greedy Joker",F_SMUL,3,3), #F
- ("Lusty Joker",F_SMUL,3,1), #F
- ("Wrathful Joker",F_SMUL,3,0), #F
- ("Gluttonous Joker",F_SMUL,3,2), #F
- ("Scholar",F_RCM,20,4,(1,)), #F S 15
- ("Smiley Face",F_RMUL,5,(11,12,13)), #F S
- ("Even Steven",F_RMUL,4,(2,4,6,8,10)), #F S
- ("Odd Todd",F_RCHP,31,(1,3,5,7,9)), #F S
- ("Sock and Buskin",F_RTRG,(11,12,13)), #F S
- ("Gros Michel",F_FMUL,15), # 20
- ("Half Joker",F_SZMUL,20,3), #F S
- ("Photograph",F_RXFIRST,2,(11,12,13)), #F S
- ("Joker Stencil",F_STENCIL,0), #F S
- ("Fibonacci",F_RMUL,8,(1,2,3,5,8)), #F S
- ("Hack",F_RTRG,(2,3,4,5)), #F S 25
- ("Arrowhead",F_SCHP,50,0), #F
- ("Bloodstone",F_SXPROB,1.5,2,1), #F
- ("Banner",F_CHIP_DISC,30), #F S
- ("Scary Face",F_RCHP,30,(11,12,13)), #F S
- ("Cavendish",F_XMUL,3), # 30
- ("Wee Joker",F_STICKY_C,8,SC_RANK_SCORED,(2,)), #F S
- ("Onyx Agate",F_SMUL,7,2), #F
- ("The Duo",F_HXMUL,2,H_PAR), #F
- ("The Tribe",F_HXMUL,2,H_COL), #F
- ("The Order",F_HXMUL,3,H_ESC), #F 35
- ("The Trio",F_HXMUL,3,H_TRI), #F
- ("The Family",F_HXMUL,4,H_POK), #F
- ("Rough Gem",F_SMONEY,1,3), #F
- ("Misprint",F_RAND_M,23), #F
- ("Dusk",F_DUSK), #F 40
- ("Bootstraps",F_BOOTS,2,5), #F
- ("Stuntman",F_HS_MOD,250,-2), #F
- ("Ice Cream",F_FCHP_DEC,100,5,0), #F
+ ("Joker",F_FMUL,4),#FS0
+ ("Jolly Joker",F_HMUL,8,H_PAR),#FS
+ ("Zany Joker",F_HMUL,12,H_TRI),#FS
+ ("Mad Joker",F_HMUL,10,H_DPA),#FS
+ ("Crazy Joker",F_HMUL,12,H_ESC),#FS
+ ("Droll Joker",F_HMUL,10,H_COL),#FS5
+ ("Sly Joker",F_HCHP,50,H_PAR),#FS
+ ("Wily Joker",F_HCHP,100,H_TRI),#FS
+ ("Clever Joker",F_HCHP,80,H_DPA),#FS
+ ("Devious Joker",F_HCHP,100,H_ESC),#FS
+ ("Crafty Joker",F_HCHP,80,H_COL),#FS10
+ ("Greedy Joker",F_SMUL,3,3),#FS
+ ("Lusty Joker",F_SMUL,3,1),#FS
+ ("Wrathful Joker",F_SMUL,3,0),#FS
+ ("Gluttonous Joker",F_SMUL,3,2),#F
+ ("Scholar",F_RCM,20,4,(1,)),#FS15
+ ("Smiley Face",F_RMUL,5,(11,12,13)),#FS
+ ("Even Steven",F_RMUL,4,(2,4,6,8,10)),#FS
+ ("Odd Todd",F_RCHP,31,(1,3,5,7,9)),#FS
+ ("Sock and Buskin",F_RTRG,(11,12,13)),#FS
+ ("Gros Michel",F_FMUL,15),#FS20
+ ("Half Joker",F_SZMUL,20,3),#FS
+ ("Photograph",F_RXFIRST,2,(11,12,13)),#FS
+ ("Joker Stencil",F_STENCIL,0),#FS
+ ("Fibonacci",F_RMUL,8,(1,2,3,5,8)),#FS
+ ("Hack",F_RTRG,(2,3,4,5)),#FS25
+ ("Arrowhead",F_SCHP,50,0),#F
+ ("Bloodstone",F_SXPROB,1.5,2,1),#F
+ ("Banner",F_CHIP_DISC,30),#FS
+ ("Scary Face",F_RCHP,30,(11,12,13)),#FS
+ ("Cavendish",F_XMUL,3),#FS30
+ ("Wee Joker",F_STICKY_C,8,SC_RANK_SCORED,(2,)),#FS
+ ("Onyx Agate",F_SMUL,7,2),#F
+ ("The Duo",F_HXMUL,2,H_PAR),#F
+ ("The Tribe",F_HXMUL,2,H_COL),#F
+ ("The Order",F_HXMUL,3,H_ESC),#F35
+ ("The Trio",F_HXMUL,3,H_TRI),#F
+ ("The Family",F_HXMUL,4,H_POK),#F
+ ("Rough Gem",F_SMONEY,1,3),#F
+ ("Misprint",F_RAND_M,23),#FS ajustar animacion
+ ("Dusk",F_DUSK),#F40
+ ("Bootstraps",F_BOOTS,2,5),#F
+ ("Stuntman",F_HS_MOD,250,-2),#F
+ ("Ice Cream",F_FCHP_DEC,100,5,0),#FS
  ("Abstract Joker",F_NJOK_M,3), #F
  ("Mystic Summit",F_NODISC_M,15), #F 45
  ("Acrobat",F_HD_LAST_X,3), #F
@@ -291,11 +294,11 @@ JDEFS=[
  ("Ramen",F_RAMEN,2), #F
  ("Runner",F_STICKY_C,15,SC_HAND_FLAG,H_ESC), #F
  ("Square Joker",F_STICKY_C,4,SC_SIZE_EQ,4), #F
- ("Spare Trousers",F_STICKY_M,2,SC_HAND_FLAG,H_PAR), #F
+ ("Spare Trousers",F_STICKY_M,2,SC_HAND_FLAG,H_DPA), #F
  ("Shoot the Moon",F_HELD_R,13,(12,),0), #F 55
  ("Baron",F_HELD_R,1.5,(13,),1), #F
  ("Walkie Talkie",F_RCM,10,4,(10,4)), #F
- ("Blue Joker",F_DECK_C,2),
+ ("Blue Joker",F_DECK_C,2), #F S
  ("Juggler",F_HAND_SIZE,1),
  ("Popcorn",F_FMUL_DEC,20,4), #F 60
  ("Golden Joker",F_EOR_MONEY,4),
@@ -314,9 +317,9 @@ JDEFS=[
  ("Throwback",F_FMUL,6),
  ("Driver Snail",F_FMUL,2),# 75
  ("Hologram",F_HMUL,10,H_FH),
- ("Vampire",F_STICKY_M,1,SC_HAND_FLAG,H_FUL),
+ ("Vampire",F_VAMP),
  ("Castle",F_STICKY_C,3,SC_PLAYED,0),
- ("Egg",F_EOR_MONEY,3),
+ ("Egg",F_EOR_SV,3),
  ("Faceless",F_EOR_MONEY,5), #80
  ("Cartomancer",F_HCHP,80,H_SF),
  ("Marble Joker",F_HCHP,50,H_5KF),
@@ -357,6 +360,9 @@ JDEFS=[
  ("Tundra",F_FMUL_DEC,30,5),
  ("Coupon",F_FREE_REROLL),
  ("Telescope",F_EOR_INT), # 119
+ ("Midas Mask",F_MIDAS), # 120
+ ("Golden Ticket",F_GTICK),
+ ("Lucky Cat",F_LUCKY), # 122
 ]
 
 JRAR={
@@ -371,6 +377,7 @@ JRAR={
  88:2,89:1,90:1,91:1,92:1,93:0,94:0,95:1,96:0,97:0,98:0,
  99:1,100:1,101:1,102:1,103:0,104:0,105:0,106:0,107:0,108:0,109:0,
  110:0,111:0,112:1,113:1,114:1,115:0,116:1,117:1,118:1,119:1,
+ 120:1,121:0,122:1,
 }
 
 JPOOL=[[],[],[]]
@@ -389,6 +396,10 @@ JSPR={
 8:(3,2,420,[(7,9),(8,9),(4,2),(2,4),(3,2)]),
 9:(3,2,420,[(7,2),(3,10),(2,9),(4,7),(8,3),(10,2)]),
 10:(3,2,420,[(7,2),(4,14),(3,14),(2,13),(8,3),(10,2)]),
+11:(3,2,456,[(11,8),(2,8),(3,10)]),
+12:(3,2,456,[(11,2)]),
+13:(3,2,456,[(11,4),(2,4),(3,6)]),
+14:(3,2,456,[(11,1),(2,1),(3,5)]),
 15:(2,418),
 16:(3,2,416,[(11,8)]),
 17:(2,398),
@@ -402,10 +413,13 @@ JSPR={
 25:(3,2,422,[(11,2)]),
 28:(2,424),
 29:(3,2,426,[(11,15)]),
-30:(3,2,392,[(11,0)]),
+30:(3,2,392,[(11,1)]),
 31:(1,354),
+39:(2,458),
+43:(3,2,452,[(11,7)]),
 49:(3,2,394,[(8,5),(3,1),(2,1),(7,1),(6,5)]),
 57:(2,428),
+58:(3,2,454,[(11,7)]),
 60:(3,2,430,[(11,2)]),
 62:(2,450),
 63:(3,2,448,[(11,14)]),
@@ -486,7 +500,9 @@ JVT={
  F_EOR_DECK_RANK:("+$",1,"/CARD ",2,""),F_SPLASH:("ALL SCORE",0,"","",0),
  F_FIRST_RTRG:("+",1," RTRG 1st","",0),F_HAND_SIZE:("+",1," HAND SIZE","",0),
  F_BONES:("PREVENTS LOSS",0,"","",0),F_FREE_REROLL:("1 FREE REROLL",0,"","",0),
- F_XMUL_PER_EF:("X",1,"/EFFECT","",0),
+ F_XMUL_PER_EF:("X",1,"/EFFECT","",0),F_EOR_SV:("+$",1," VAL/RND","",0),
+ F_MIDAS:("FACE>GOLD",0,"","",0),F_GTICK:("$4/GOLD",0,"","",0),
+ F_VAMP:("X",4," EAT EF","",0),F_LUCKY:("X",4," MULT","",0),
 }
 
 def _jvt_v(j,d,m):
@@ -688,14 +704,17 @@ class Carta:
   self.sel=False
   self.offset_eval=0
   self.bc=0
+  self.bk=0
 
 class Joker:
  def __init__(self,type_id):
   self.id=type_id
   self.st=0
   self.xm=0.0
+  self.sv=0
   d=JDEFS[type_id]
   if d[1]==F_RAMEN: self.xm=float(d[2])
+  elif d[1] in (F_VAMP,F_LUCKY): self.xm=1.0
   elif d[1]==F_FCHP_DEC: self.st=d[2]
   elif d[1]==F_FMUL_DEC: self.st=d[2]
   self.an=random.randint(0,1000)
@@ -744,15 +763,15 @@ def use_planeta(idx):
  gs["hl"][d[1]]+=1
  gs["consu"].pop(idx)
 
-def joker_sell_value(jid):
- v=JCOST[JRAR.get(jid,0)]//2
+def joker_sell_value(j):
+ v=JCOST[JRAR.get(j.id,0)]//2+j.sv
  if v<1: v=1
  return v
 
 def sell_joker(idx):
  if idx>=len(gs["jokers"]): return
  j=gs["jokers"][idx]
- gs["mn"]+=joker_sell_value(j.id)
+ gs["mn"]+=joker_sell_value(j)
  gs["jokers"].pop(idx)
  gs["sel_joker"]=-1
  recalc_hs()
@@ -762,16 +781,6 @@ def sell_consu(idx):
  gs["mn"]+=1
  gs["consu"].pop(idx)
  gs["sel_consu"]=-1
-
-def small_btn(x,y,txt,col,raton):
- w=len(txt)*4+4
- mx=raton[0]
- my=raton[1]
- hv=mx>=x and mx<x+w and my>=y and my<y+8
- rect(x,y,w,8,1)
- rectb(x,y,w,7,col)
- draw_text(txt,x+2,y+2,col)
- return hv and raton[2] and not gs["Clk0"]
 
 def joker_x_pos(ji,n):
  if n==1: return 83+(172-83-16)//2
@@ -790,12 +799,18 @@ def draw_sell_use_buttons(raton):
   n=len(gs["jokers"])
   xj=joker_x_pos(sj,n)
   j=gs["jokers"][sj]
-  v=joker_sell_value(j.id)
-  if small_btn(xj,34,"$"+str(v),9,raton): sell_joker(sj)
+  v=joker_sell_value(j)
+  bt=Boton("$"+str(v),4,xj+18,14,2,1,True)
+  bt.pintar()
+  if bt.clicado() and not gs["Clk0"]: sell_joker(sj)
  if 0<=sc<len(gs["consu"]):
   xp=189+sc*18
-  if small_btn(xp,34,"$1",9,raton): sell_consu(sc)
-  if small_btn(xp,44,"use",11,raton):
+  bs=Boton("$1",4,xp+18,10,2,1,True)
+  bs.pintar()
+  if bs.clicado() and not gs["Clk0"]: sell_consu(sc)
+  bu=Boton("use",0,xp+18,20,2,1,True)
+  bu.pintar()
+  if bu.clicado() and not gs["Clk0"]:
    use_planeta(sc)
    gs["sel_consu"]=-1
 
@@ -892,24 +907,23 @@ def print_cards(x,y,xf,cards,permite_seleccion):
  draggable=permite_seleccion and (cards is hand)
  if draggable and mb and gs["drag_card"] is not None and not gs["drag_active"]:
   if abs(mx-gs["drag_px"])>3: gs["drag_active"]=True
- if draggable and not mb and gs["Clk0"]:
+ if draggable and not mb and gs["Clk0"] and gs["drag_card"] is not None:
   dc=gs["drag_card"]
-  if dc is not None:
-   if gs["drag_active"]:
-    n=len(hand)
-    sp=0 if n<=1 else (xf-x-17)/(n-1)
-    if sp>0: ni=int(round((mx-x-8)/sp))
-    else: ni=0
-    if ni<0: ni=0
-    if ni>=n: ni=n-1
-    if dc in hand:
-     oi=hand.index(dc)
-     if ni!=oi:
-      hand.pop(oi)
-      hand.insert(ni,dc)
-   else:
-    if dc.sel or len([cc for cc in hand if cc.sel])<5:
-     dc.sel=not dc.sel
+  if gs["drag_active"]:
+   n=len(hand)
+   sp=0 if n<=1 else (xf-x-17)/(n-1)
+   if sp>0: ni=int(round((mx-x-8)/sp))
+   else: ni=0
+   if ni<0: ni=0
+   if ni>=n: ni=n-1
+   if dc in hand:
+    oi=hand.index(dc)
+    if ni!=oi:
+     hand.pop(oi)
+     hand.insert(ni,dc)
+  else:
+   if dc.sel or len([cc for cc in hand if cc.sel])<5:
+    dc.sel=not dc.sel
   gs["drag_card"]=None
   gs["drag_active"]=False
  con=0
@@ -938,6 +952,7 @@ def eval_hand():
  return [c for c in gs["hand"] if c.sel]
 
 def chips_c(card):
+ if card.ef==6: return 50+card.bc
  if card.va==1: return 11+card.bc
  elif card.va>=11: return 10+card.bc
  return card.va+card.bc
@@ -948,15 +963,15 @@ def detectar_mano(cartas):
  cs={}
  for c in cartas:
   cv[c.va]=cv.get(c.va,0)+1
-  cs[c.su]=cs.get(c.su,0)+1
+  if c.ef!=3: cs[c.su]=cs.get(c.su,0)+1
  g=sorted(cv.values(),reverse=True)
  vals=sorted(cv.keys())
  n=len(cartas)
- ecol=(len(cs)==1 and n==5)
+ ecol=(len(cs)<=1 and n==5)
  eesc=False
  if n==5 and len(cv)==5:
   r=vals[-1]-vals[0]
-  eesc=(r==4) or vals==[1,2,3,4,5]
+  eesc=(r==4) or vals==[1,2,3,4,5] or vals==[1,10,11,12,13]
  e5i=(n==5 and g[0]==5)
  if e5i and ecol: return (H_5KF,cartas[:])
  if ecol and g[0]>=3 and len(g)>=2 and g[1]>=2: return (H_FH,cartas[:])
@@ -1039,8 +1054,8 @@ def spawn_for_joker(ji):
  if f in (F_FMUL,F_HMUL,F_SMUL,F_RMUL,F_SZMUL,F_NODISC_M): spawn_particle(cx,cy,d[2],"mult")
  elif f in (F_FCHP,F_HCHP,F_SCHP,F_RCHP): spawn_particle(cx,cy,d[2],"chip")
  elif f in (F_XMUL,F_RXFIRST,F_HD_LAST_X,F_HXMUL): spawn_particle(cx,cy,d[2],"xmult")
- elif f==F_RAMEN: spawn_particle(cx,cy,round(j.xm,2),"xmult")
- elif f==F_STENCIL: spawn_particle(cx,cy,max(1,5-len(gs["jokers"])),"xmult")
+ elif f in (F_RAMEN,F_VAMP,F_LUCKY): spawn_particle(cx,cy,round(j.xm,2),"xmult")
+ elif f==F_STENCIL: spawn_particle(cx,cy,max(1,gs["jslots"]-len(gs["jokers"])+1),"xmult")
  elif f==F_CHIP_DISC: spawn_particle(cx,cy,d[2]*gs["ds"],"chip")
  elif f==F_NJOK_M: spawn_particle(cx,cy,d[2]*len(gs["jokers"]),"mult")
  elif f==F_BULL: spawn_particle(cx,cy,d[2]*gs["mn"],"chip")
@@ -1088,15 +1103,15 @@ def calcular_mano_flags(cartas):
  cs={}
  for c in cartas:
   cv[c.va]=cv.get(c.va,0)+1
-  cs[c.su]=cs.get(c.su,0)+1
+  if c.ef!=3: cs[c.su]=cs.get(c.su,0)+1
  g=sorted(cv.values(),reverse=True)
  vals=sorted(cv.keys())
  n=len(cartas)
- ecol=(len(cs)==1 and n==5)
+ ecol=(len(cs)<=1 and n==5)
  eesc=False
  if n==5 and len(cv)==5:
   r=vals[-1]-vals[0]
-  eesc=(r==4) or vals==[1,2,3,4,5]
+  eesc=(r==4) or vals==[1,2,3,4,5] or vals==[1,10,11,12,13]
  f=[False]*12
  if n==0: return f
  f[H_PAR]=g[0]>=2
@@ -1118,12 +1133,11 @@ def joker_fires_play(j): return False
 def joker_fires_score(j,card):
  d=JDEFS[j.id]
  f=d[1]
- if f==F_SMUL or f==F_SCHP: return card.su==d[3]
+ if f==F_SMUL or f==F_SCHP or f==F_SMONEY: return card.su==d[3] or card.ef==3
  if f==F_RMUL or f==F_RCHP: return card.va in d[3]
  if f==F_RCM: return card.va in d[4]
- if f==F_SMONEY: return card.su==d[3]
  if f==F_SXPROB:
-  if card.su!=d[4]: return False
+  if card.su!=d[4] and card.ef!=3: return False
   return random.randint(1,d[3])==1
  return False
 
@@ -1143,6 +1157,7 @@ def joker_fires_ind(j):
  if f==F_DECK_C: return True
  if f==F_FMUL_DEC: return j.st>0
  if f==F_XMUL_PER_EF: return True
+ if f in (F_VAMP,F_LUCKY): return j.xm>1.0
  return False
 
 def count_retriggers(card):
@@ -1159,8 +1174,8 @@ def apply_joker_effect(j):
  if f in (F_FMUL,F_HMUL,F_SMUL,F_RMUL,F_SZMUL,F_NODISC_M): gs["tot_mult"]+=d[2]
  elif f in (F_FCHP,F_HCHP,F_SCHP,F_RCHP): gs["tot_chips"]+=d[2]
  elif f in (F_XMUL,F_RXFIRST,F_HD_LAST_X,F_HXMUL): gs["tot_mult"]*=d[2]
- elif f==F_RAMEN: gs["tot_mult"]*=j.xm
- elif f==F_STENCIL: gs["tot_mult"]*=max(1,5-len(gs["jokers"]))
+ elif f in (F_RAMEN,F_VAMP,F_LUCKY): gs["tot_mult"]*=j.xm
+ elif f==F_STENCIL: gs["tot_mult"]*=max(1,gs["jslots"]-len(gs["jokers"])+1)
  elif f==F_CHIP_DISC: gs["tot_chips"]+=d[2]*gs["ds"]
  elif f==F_NJOK_M: gs["tot_mult"]+=d[2]*len(gs["jokers"])
  elif f==F_BULL: gs["tot_chips"]+=d[2]*gs["mn"]
@@ -1183,6 +1198,44 @@ def apply_joker_effect(j):
    if c.ef==d[3]: ct+=1
   gs["tot_mult"]*=(1+d[2]*ct)
 
+def apply_card_ef(c,cx,cy):
+ for jh in gs["jokers"]:
+  f=JDEFS[jh.id][1]
+  if f==F_MIDAS and c.va>10: c.ef=7
+  elif f==F_VAMP and c.ef>0:
+   jh.xm+=0.1
+   c.ef=0
+   spawn_particle(cx,cy-6,round(jh.xm,2),"xmult")
+ ef=c.ef
+ if ef==1:
+  gs["tot_chips"]+=30
+  spawn_particle(cx,cy-6,30,"chip")
+ elif ef==2:
+  gs["tot_mult"]+=4
+  spawn_particle(cx,cy-6,4,"mult")
+ elif ef==4:
+  gs["tot_mult"]*=2
+  spawn_particle(cx,cy-6,2,"xmult")
+  if random.randint(1,4)==1: c.bk=1
+ elif ef==7:
+  for jh in gs["jokers"]:
+   if JDEFS[jh.id][1]==F_GTICK:
+    gs["mn"]+=4
+    spawn_particle(cx,cy-12,4,"money")
+ elif ef==8:
+  tr=False
+  if random.randint(1,5)==1:
+   gs["tot_mult"]+=20
+   spawn_particle(cx,cy-6,20,"mult")
+   tr=True
+  if random.randint(1,15)==1:
+   gs["mn"]+=20
+   spawn_particle(cx,cy-12,20,"money")
+   tr=True
+  if tr:
+   for jh in gs["jokers"]:
+    if JDEFS[jh.id][1]==F_LUCKY: jh.xm+=0.25
+
 def apply_event(e):
  et=e[0]
  if et==E_CSCORE:
@@ -1196,6 +1249,7 @@ def apply_event(e):
   is_rt=len(e)>2 and e[2]
   spawn_particle(cx,cy,chips,"chip")
   if is_rt: spawn_particle(cx,cy-12,"TRIGER","trigger")
+  apply_card_ef(c,cx,cy)
  elif et==E_OPLAY:
   apply_joker_effect(gs["jokers"][e[1]])
   spawn_for_joker(e[1])
@@ -1209,10 +1263,14 @@ def apply_event(e):
   spawn_for_joker(ji)
  elif et==E_HELD:
   ji,hi=e[1]
+  if hi<len(gs["hand"]): cx,cy=hand_card_center(hi)
+  else: cx,cy=(128,53)
+  if ji<0:
+   gs["tot_mult"]*=1.5
+   spawn_particle(cx,cy,1.5,"xmult")
+   return
   j=gs["jokers"][ji]
   d=JDEFS[j.id]
-  if hi<len(gs["hand"]): cx,cy=hand_card_center(hi)
-  else: cx,cy=joker_center_xy(ji)
   if d[4]==0:
    gs["tot_mult"]+=d[2]
    spawn_particle(cx,cy,d[2],"mult")
@@ -1277,6 +1335,8 @@ def build_event_queue(scoring):
     if c not in gs["b"] and c.va in d[3]:
      q.append([E_HELD,(ji,hi)])
   elif joker_fires_ind(j): q.append([E_IND,ji])
+ for hi,c in enumerate(gs["hand"]):
+  if c not in gs["b"] and c.ef==5: q.append([E_HELD,(-1,hi)])
  q.append([E_FINAL,None])
  return q
 
@@ -1334,6 +1394,8 @@ def joker_round_money():
    for ca in gs["baraja"].total:
     if ca.va==d[3]: c+=1
    m+=d[2]*c
+ for c in gs["hand"]:
+  if c.ef==7: m+=3
  return m
 
 def has_free_reroll():
@@ -1396,10 +1458,10 @@ def cash_out_money():
   disc=gs["ds"]
  else:
   hands=gs["hd"]
-  itc=INTEREST_CAP
+  itc=0
   for j in gs["jokers"]:
-   if JDEFS[j.id][1]==F_EOR_INT: itc*=2
-  interest=min(itc,gs["mn"]//5)
+   if JDEFS[j.id][1]==F_EOR_INT: itc+=1
+  interest=min(INTEREST_CAP,gs["mn"]//5)*(1+itc)
   disc=0
  extra=joker_round_money()
  return reward,hands,interest,disc,extra
@@ -1426,6 +1488,8 @@ def start_round_win():
   elif d[1]==F_FMUL_DEC:
    j.st-=d[3]
    if j.st<=0: continue
+  elif d[1]==F_EOR_SV:
+   j.sv+=d[2]
   new_j.append(j)
  gs["jokers"]=new_j
  recalc_hs()
@@ -1452,6 +1516,7 @@ def finalize_score():
  gs["jokers"]=new_j
  recalc_hs()
  gs["rs"]+=int(gs["tot_chips"]*gs["tot_mult"])
+ gs["baraja"].total=[c for c in gs["baraja"].total if not c.bk]
  gs["hand"]=[c for c in gs["hand"] if c not in gs["b"]]
  gs["b"]=[]
  gs["scoring_cards"]=[]
@@ -1471,21 +1536,14 @@ def finalize_score():
 def step_queue():
  q=gs["ev_queue"]
  if gs["ev_idx"]>=len(q):
-  if DEBUG:
-   if btnp(4): finalize_score()
-  else: finalize_score()
+  finalize_score()
   return
  e=q[gs["ev_idx"]]
  if gs["ev_timer"]==0: apply_event(e)
  gs["ev_timer"]+=1
- if DEBUG:
-  if btnp(4):
-   gs["ev_idx"]+=1
-   gs["ev_timer"]=0
- else:
-  if gs["ev_timer"]>=EDUR[e[0]]:
-   gs["ev_idx"]+=1
-   gs["ev_timer"]=0
+ if gs["ev_timer"]>=EDUR[e[0]]:
+  gs["ev_idx"]+=1
+  gs["ev_timer"]=0
 
 def update_event_visuals():
  for c in gs["b"]: c.offset_eval=0
@@ -1496,10 +1554,8 @@ def update_event_visuals():
  if gs["ev_idx"]>=len(q): return
  e=q[gs["ev_idx"]]
  et=e[0]
- if DEBUG: bounce=6
- else:
-  prog=min(1.0,gs["ev_timer"]/EDUR[et]) if EDUR[et]>0 else 1.0
-  bounce=int(math.sin(prog*math.pi)*6)
+ prog=min(1.0,gs["ev_timer"]/EDUR[et]) if EDUR[et]>0 else 1.0
+ bounce=int(math.sin(prog*math.pi)*6)
  if et==E_CSCORE:
   ci=e[1]
   if ci<len(gs["scoring_cards"]): gs["scoring_cards"][ci].offset_eval=bounce
@@ -1520,32 +1576,8 @@ def update_event_visuals():
  elif et==E_OPLAY or et==E_IND: gs["active_joker_idx"]=e[1]
  elif et==E_HELD:
   ji,hi=e[1]
-  gs["active_joker_idx"]=ji
+  if ji>=0: gs["active_joker_idx"]=ji
   if hi<len(gs["hand"]): gs["hand"][hi].offset_eval=bounce
-
-def get_event_name(e):
- RANK=["A","2","3","4","5","6","7","8","9","10","J","Q","K"]
- SUIT=["P","C","T","R"]
- et=e[0]
- if et==E_RISE: return "RISE"
- if et==E_FINAL: return "FINAL"
- if et==E_CSCORE:
-  c=gs["scoring_cards"][e[1]]
-  isrt=len(e)>2 and e[2]
-  return ("RTRG " if isrt else "CARD ")+RANK[c.va-1]+SUIT[c.su]+" "+str(chips_c(c))+"CH"
- if et==E_OPLAY: return "OPLAY:"+JDEFS[gs["jokers"][e[1]].id][0][:6].upper()
- if et==E_IND: return "IND:"+JDEFS[gs["jokers"][e[1]].id][0][:7].upper()
- if et==E_OSCORE:
-  ji,ci=e[1]
-  c=gs["scoring_cards"][ci]
-  return "SCORE:"+JDEFS[gs["jokers"][ji].id][0][:5].upper()+"/"+RANK[c.va-1]
- if et==E_HELD:
-  ji,hi=e[1]
-  if hi<len(gs["hand"]):
-   c=gs["hand"][hi]
-   return "HELD:"+JDEFS[gs["jokers"][ji].id][0][:4].upper()+"/"+RANK[c.va-1]
-  return "HELD:?"
- return "?"
 
 def print_consumibles(oy=0):
  reset_col()
@@ -1555,17 +1587,22 @@ def print_consumibles(oy=0):
  my=mouse()[1]
  mb=mouse()[2]
  clickable=(gs["gm"] in (1,3,4)) and gs["fase_puntos"]==0 and oy==0
+ ob=False
+ ssc=gs["sel_consu"]
+ if 0<=ssc<n:
+  bx=189+ssc*18+18
+  if mx>=bx and mx<bx+16 and ((10<=my<18) or (20<=my<28)): ob=True
  clicked=-1
  for i in range(n):
   p=gs["consu"][i]
   xp=189+i*18
-  yp=int(8+oy+onda_y(p.an)*1.2)
+  yp=int(8+oy+onda_y(p.an)*1.2)-(5 if gs["sel_consu"]==i else 0)
   dibujar_planeta(xp,yp,p)
   hv=mx>=xp and mx<xp+16 and my>=yp and my<yp+22
   if hv:
    if p.ht<30: p.ht+=1
    gs["tt_target"]=("planeta",p,xp,yp)
-   if clickable and mb and not gs["Clk0"]: clicked=i
+   if clickable and mb and not gs["Clk0"] and not ob: clicked=i
   else: p.ht=0
  if clicked>=0:
   if gs["sel_consu"]==clicked: gs["sel_consu"]=-1
@@ -1578,24 +1615,6 @@ def check_mazo_click(raton):
   gs["visor_from"]=gs["gm"]
   gs["gm"]=2
 
-def draw_debug():
- if not DEBUG or gs["fase_puntos"]==0: return
- q=gs["ev_queue"]
- idx=gs["ev_idx"]
- rect(4,77,172,20,0)
- rectb(4,77,172,20,6)
- if idx>=len(q):
-  draw_text("DONE   Z>FIN",6,80,15)
-  draw_text("CH:"+str(int(gs["tot_chips"])),6,88,6)
-  draw_text("ML:"+str(int(gs["tot_mult"])),70,88,3)
-  return
- e=q[idx]
- nm=get_event_name(e)
- draw_text(nm,6,80,15)
- draw_text("CH:"+str(int(gs["tot_chips"])),6,88,6)
- draw_text("ML:"+str(int(gs["tot_mult"])),70,88,3)
- draw_text("Z>NEXT",126,88,14)
-
 def print_jokers(oy=0):
  reset_col()
  bx=83
@@ -1604,7 +1623,7 @@ def print_jokers(oy=0):
  ai=gs["active_joker_idx"]
  n=len(gs["jokers"])
  if n==0:
-  if not mouse()[2] and gs["Clk0"]:
+  if not mouse()[2] and gs["Clk0"] and gs["drag_joker"] is not None:
    gs["drag_joker"]=None
    gs["drag_active"]=False
   return
@@ -1617,11 +1636,16 @@ def print_jokers(oy=0):
  my=mouse()[1]
  mb=mouse()[2]
  draggable=(gs["gm"] in (1,3)) and gs["fase_puntos"]==0 and oy==0
+ ob=False
+ ssj=gs["sel_joker"]
+ if 0<=ssj<n:
+  obx=joker_x_pos(ssj,n)+18
+  if mx>=obx and mx<obx+16 and 14<=my<22: ob=True
  if draggable and mb and gs["drag_joker"] is not None and not gs["drag_active"]:
   if abs(mx-gs["drag_px"])>3 or abs(my-gs["drag_py"])>3: gs["drag_active"]=True
- if draggable and not mb and gs["Clk0"]:
+ if draggable and not mb and gs["Clk0"] and gs["drag_joker"] is not None:
   dj=gs["drag_joker"]
-  if dj is not None and dj in gs["jokers"]:
+  if dj in gs["jokers"]:
    oi=gs["jokers"].index(dj)
    if gs["drag_active"]:
     nj=len(gs["jokers"])
@@ -1646,12 +1670,12 @@ def print_jokers(oy=0):
  for j in gs["jokers"]:
   dec+=sep-int(sep)
   xj=int(bx+con*int(sep)+int(dec))
-  yj_base=int(by+onda_y(j.an)*1.2)-(4 if ai==con else 0)
+  yj_base=int(by+onda_y(j.an)*1.2)-(4 if ai==con else 0)-(5 if gs["sel_joker"]==con else 0)
   hv=mx>=xj and mx<xj+16 and my>=yj_base and my<yj_base+24
   if hv and not gs["drag_active"]:
    if j.ht<30: j.ht+=1
   else: j.ht=0
-  if draggable and hv and mb and not gs["Clk0"] and gs["drag_joker"] is None:
+  if draggable and hv and mb and not gs["Clk0"] and gs["drag_joker"] is None and not ob:
    gs["drag_joker"]=j
    gs["drag_active"]=False
    gs["drag_px"]=mx
@@ -1734,7 +1758,7 @@ def PantallaMenu(raton):
   gs["jslots"]=joker_slots()
   gs["hd"]=base_hands()
   gs["ds"]=base_discards()
-  gs["jokers"]=[Joker(60)]
+  gs["jokers"]=[Joker(43)]
   gs["hand"]=[]
   gs["b"]=[]
   gs["consu"]=[]
@@ -1826,9 +1850,11 @@ def handle_play(up):
  if gs["fase_puntos"]==0 and btn_play.clicado() and not gs["Clk0"] and gs["hd"]>0:
   b=eval_hand()
   if len(b)>0:
-   hi,sc=detectar_mano(b)
+   hi,sc=detectar_mano([c for c in b if c.ef!=6])
+   if hi<0: hi=H_HC
+   sc=sc+[c for c in b if c.ef==6]
    nm,cb,mb=hand_score(hi)
-   if hi>=0: gs["hp"][hi]=True
+   gs["hp"][hi]=True
    if splash_active(): sc=b[:]
    gs["b"]=b
    gs["nombre_mano"]=nm
@@ -2108,6 +2134,7 @@ JBOX={
  F_EOR_MONEY:("$",1,9),F_EOR_DISC:("$/D",None,9),F_EOR_INT:("INTx2",None,9),
  F_EOR_DECK_RANK:("$/",9,9),F_SPLASH:("ALL",None,11),F_FIRST_RTRG:("RT1",None,11),
  F_HAND_SIZE:("+",10,15),F_BONES:("REV",None,11),F_FREE_REROLL:("RR0",None,9),
+ F_EOR_SV:("$",1,9),
 }
 
 def _jbox_val(j,d,m):
@@ -2186,7 +2213,6 @@ def PantallaJuego(raton):
    y=int(83-prog*30)
   else: y=53
   print_cards(80,y,80+(len(gs["b"])*16),gs["b"],False)
-  draw_debug()
   step_queue()
  print_cards(80,140-up-voff,193,gs["hand"],permitir_interaccion)
  update_and_draw_particles()
