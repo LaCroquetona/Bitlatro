@@ -36,6 +36,7 @@ juego se queda por debajo de 1.0 hasta que esté completo.
   el visor del mazo enseñaba cartas de la ronda anterior; una Stone podía
   formar pareja o color para los jokers de tipo de mano; en la pantalla de
   ciegas no se podía seleccionar un joker para venderlo.
+- Probado en el emulador de TIC-80.
 
 ## v0.4.1 — 2026-06-11 — Mejoras de carta y 123 jokers
 

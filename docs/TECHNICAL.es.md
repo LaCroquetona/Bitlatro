@@ -994,7 +994,7 @@ El código se prueba con los dos intérpretes pocketpy que trae TIC-80: el de la
 - Jokers auditados contra la wiki: fuera los 30 inventados (quedan 93: 75 fieles y 18 `#M`), 16 rarezas corregidas y 3 nombres corregidos (§8).
 - `JSPR` comprobado contra los sprites del cartucho: no había desfase; la lista de esta doc era la que estaba mal (§8).
 - Bugs arreglados: vender un joker durante la puntuación hacía petar el juego; el visor del mazo enseñaba cartas de la ronda anterior; una Stone podía formar pareja o color para los jokers de tipo de mano; en la pantalla de ciegas no se podía seleccionar un joker para venderlo.
-- Verificación: un bot jugando miles de fotogramas (partidas, tienda, sobres, visor, ventas, arrastres) en CPython y en los pocketpy de TIC-80 1.1 y 1.3.1, sin errores, y una mano + descarte + cobro con cada uno de los 93 jokers. **No probado todavía en el emulador de TIC-80.**
+- Verificación: un bot jugando miles de fotogramas (partidas, tienda, sobres, visor, ventas, arrastres) en CPython y en los pocketpy de TIC-80 1.1 y 1.3.1, sin errores, y una mano + descarte + cobro con cada uno de los 93 jokers. Probado también en el emulador de TIC-80 (PRO).
 
 ### Versiones anteriores
 

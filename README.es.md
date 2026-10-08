@@ -1,8 +1,12 @@
+<p align="center"><img src="docs/img/logo.png" alt="Bitlatro" width="520"></p>
+
 # Bitlatro
 
 > Una versión compacta y fiel de **Balatro** para la consola fantasía [TIC-80](https://tic80.com), escrita en Python.
 
 *Léelo en otros idiomas: [English](README.md).*
+
+![Gameplay](docs/img/gameplay.gif)
 
 ## ¿Qué es?
 
@@ -45,6 +49,20 @@ Todo el pixel art y la música son originales.
 4. **Cobra** y gasta en la **tienda**: jokers, planetas y sobres, haz *reroll*
    y elige la siguiente ciega.
 5. Aguanta todos los antes que puedas.
+
+## Capturas
+
+| Menú | Selección de ciega |
+|:---:|:---:|
+| ![Menú](docs/img/menu.png) | ![Selección de ciega](docs/img/blind.png) |
+| **Mano** | **Visor del mazo** |
+| ![Mano](docs/img/hand.png) | ![Visor del mazo](docs/img/deck.png) |
+
+### Pixel art
+
+| Jokers | Hoja de sprites |
+|:---:|:---:|
+| ![Jokers](docs/img/jokers.png) | ![Hoja de sprites](docs/img/sprites.png) |
 
 ## Cómo ejecutarlo
 
@@ -125,7 +143,10 @@ el detalle completo está en el [CHANGELOG](CHANGELOG.es.md).
 
 ## Créditos y licencia
 
-Hecho por **LaCroquetona**, pixel art y música incluidos.
+Hecho por **LaCroquetona**. Todo el pixel art y la música son míos. Las
+primeras versiones del código y su estructura las escribí yo, y a partir de ahí
+usé IA (Claude) como asistente de programación para ampliarlo, revisarlo y
+documentarlo.
 
 Bitlatro es un proyecto fan sin ánimo de lucro inspirado en *Balatro*, de
 LocalThunk (publicado por Playstack). No tiene relación con ellos ni cuenta con

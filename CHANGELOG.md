@@ -36,6 +36,7 @@ game stays below 1.0 until it is complete.
   showed cards from the previous round; a Stone card could make a pair or a
   flush for hand-type jokers; jokers could not be selected for selling on the
   blind screen.
+- Tested in the TIC-80 emulator.
 
 ## v0.4.1 — 2026-06-11 — Card enhancements and 123 jokers
 

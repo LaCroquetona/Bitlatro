@@ -1,8 +1,12 @@
+<p align="center"><img src="docs/img/logo.png" alt="Bitlatro" width="520"></p>
+
 # Bitlatro
 
 > A compact, faithful demake of **Balatro** for the [TIC-80](https://tic80.com) fantasy console, written in Python.
 
 *Read this in other languages: [Español](README.es.md).*
+
+![Gameplay](docs/img/gameplay.gif)
 
 ## What is it?
 
@@ -44,6 +48,20 @@ All the pixel art and music are original.
 4. **Cash out** and spend in the **shop**: buy jokers, planets and packs,
    reroll the offer, then pick your next blind.
 5. Survive the rising antes for as long as you can.
+
+## Screenshots
+
+| Menu | Blind select |
+|:---:|:---:|
+| ![Menu](docs/img/menu.png) | ![Blind select](docs/img/blind.png) |
+| **Hand** | **Deck viewer** |
+| ![Hand](docs/img/hand.png) | ![Deck viewer](docs/img/deck.png) |
+
+### Pixel art
+
+| Jokers | Sprite sheet |
+|:---:|:---:|
+| ![Jokers](docs/img/jokers.png) | ![Sprite sheet](docs/img/sprites.png) |
 
 ## Running it
 
@@ -120,7 +138,9 @@ full log is in the [CHANGELOG](CHANGELOG.md).
 
 ## Credits & license
 
-Made by **LaCroquetona**, pixel art and music included.
+Made by **LaCroquetona**. All the pixel art and music are mine. I wrote the
+first versions of the code and its structure myself, and from there I used AI
+(Claude) as a programming assistant to extend, review and document it.
 
 Bitlatro is a non-commercial fan project inspired by *Balatro* by LocalThunk
 (published by Playstack). It is not affiliated with or endorsed by them, and
