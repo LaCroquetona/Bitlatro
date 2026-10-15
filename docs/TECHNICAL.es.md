@@ -2,7 +2,7 @@
 
 Guía completa de cómo funciona `python/bitlatro.py`, pensada para que puedas **entenderlo y explicarlo** de principio a fin. Está ordenada de lo más general a lo más concreto: primero la arquitectura, luego cada subsistema, y al final un recorrido completo de "qué pasa cuando juegas una mano".
 
-> **Versión 0.5.0 (8 oct 2026):** primera versión hecha con TIC-80 PRO, versión Python ordenada y comentada. El código ya no tiene que caber en un banco de 64 KB: está repartido en 25 secciones con un índice al principio del fichero, y los 30 jokers inventados se han quitado (quedan 93). Ver §18 Novedades.
+> **Versión 0.5.1 (15 oct 2026):** tooltips con la descripción de cada joker, constantes con nombre y helpers en vez de números mágicos y código repetido, y varios arreglos (arrastre por encima de todo, sobres con los huecos llenos, selección de jokers, baraja amarilla). La 0.5.0 (8 oct 2026) fue la primera hecha con TIC-80 PRO: código repartido en 25 secciones con índice y solo jokers reales (93). Ver §18 Novedades.
 >
 > **Convención del proyecto:** indentación de 1 espacio, sin docstrings, comentarios en español sin tildes (el editor de TIC-80 solo muestra ASCII). Los nombres de las claves de `gs` y de las familias `F_*` son la columna vertebral de todo, así que conviene tenerlos a mano (hay un glosario al final).
 
@@ -66,15 +66,19 @@ Marcas en comentarios: `#DBG` (línea de prueba), `FIX:` (arreglo de un bug, exp
 ```python
 def TIC():
  gs["tt_target"] = None
+ gs["arrastre"] = None
  raton = mouse()
  gm = gs["gm"]
- if gm == 0:
+ if gm == GM_MENU:
   PantallaMenu(raton)
- elif gm == 1:
+ elif gm == GM_JUEGO:
   PantallaJuego(raton)
  ...
- elif gm == 5:
+ elif gm == GM_GAMEOVER:
   PantallaGameOver(raton)
+ ar = gs["arrastre"]
+ if ar:
+  ...                     # la carta o el joker que se arrastra
  tt = gs["tt_target"]
  if tt:
   if tt[0] == "card":
@@ -84,7 +88,8 @@ def TIC():
 ```
 
 - `mouse()` devuelve `(x, y, pulsado_izquierdo, ...)`. Se guarda en `raton`.
-- `gs["gm"]` es el **estado de pantalla** (game mode): `0` = menú, `1` = juego, `2` = visor, `3` = tienda, `4` = selección de blind, `5` = game over. Es una máquina de estados sencilla: cada valor enruta a una función de pantalla distinta.
+- `gs["gm"]` es el **estado de pantalla** (game mode): `GM_MENU` (0), `GM_JUEGO` (1), `GM_VISOR` (2), `GM_TIENDA` (3), `GM_CIEGAS` (4) y `GM_GAMEOVER` (5). Es una máquina de estados sencilla: cada valor enruta a una función de pantalla distinta.
+- `gs["arrastre"]` funciona igual que el tooltip: `print_cards` / `print_jokers` solo apuntan qué se está arrastrando y dónde, y `TIC()` lo pinta al final. Así la carta o el joker arrastrado queda siempre por encima de textos, ciegas, tienda y sobres.
 - `gs["tt_target"]` se **resetea al inicio** y se **dibuja al final**. Las pantallas activas solo *almacenan* qué tooltip mostrar (en `print_cards`/`print_jokers`/`print_consumibles`) en vez de pintarlo al vuelo; así el tooltip queda por encima de todo lo que se haya dibujado en el fotograma. Hay tres tipos de tooltip: `"card"`, `"joker"` y `"planeta"`.
 - `gs["Clk0"]` guarda **si el ratón estaba pulsado en el fotograma anterior**. Esto es clave: para detectar un "clic nuevo" se comprueba `raton[2] and not gs["Clk0"]` (está pulsado ahora pero no lo estaba antes = flanco de bajada → clic único). Sin esto, mantener pulsado el botón dispararía la acción 60 veces por segundo. **También se usa para detectar "soltar el ratón"** (`not raton[2] and gs["Clk0"]`), que es lo que cierra una operación de arrastre.
 
@@ -97,7 +102,7 @@ def TIC():
 `gs` es el diccionario que contiene **toda** la partida. Agrupado por temas:
 
 **Control de pantalla / input**
-- `gm`: pantalla actual (0–5).
+- `gm`: pantalla actual (`GM_*`, 0–5).
 - `Clk0`: ratón pulsado el fotograma anterior (anti-repetición de clic).
 - `visor_from`: pantalla desde la que se entró al visor (1 = juego, 3 = tienda). Al salir del visor se vuelve a esa pantalla.
 
@@ -123,7 +128,7 @@ def TIC():
 - `consu`: consumibles (instancias de `Planeta`). Máximo 2.
 
 **Fase de puntuación (motor de eventos)**
-- `fase_puntos`: `0` = interacción (seleccionar/jugar/descartar); `1` = animación de puntuación en curso; `2` = ronda ganada, **subiendo la pantalla** hacia el cash out; `3` = cash out fijo arriba, esperando clic para cobrar.
+- `fase_puntos`: `FP_ELEGIR` (0) = interacción (seleccionar/jugar/descartar); `FP_PUNTUAR` (1) = animación de puntuación en curso; `FP_SUBIR` (2) = ronda ganada, **subiendo la pantalla** hacia el cash out; `FP_COBRAR` (3) = cash out fijo arriba, esperando clic para cobrar.
 - `tot_chips`, `tot_mult`: acumuladores de fichas y multiplicador de la mano que se está puntuando.
 - `scoring_cards`: las cartas que realmente puntúan (p. ej. solo la pareja, no las 5; o todas si Splash está activo).
 - `nombre_mano`: nombre del tipo de mano detectado al jugar (`"PAIR"`, `"FLUSH HOUSE"`, etc.). Se usa solo para mostrar.
@@ -141,7 +146,7 @@ def TIC():
 - `blind`: blind actual de la ronda (`0` = small, `1` = big, `2` = boss).
 - `voff`: *vertical offset* del scroll. `0` mientras juegas; sube hasta `SCREEN_H` (136) cuando ganas, arrastrando con él los elementos del "mundo" para que el cash out entre desde abajo.
 - `co_wait`: contador de pausa antes de empezar a subir la pantalla (en frames). Permite que los jokers hagan sus animaciones de fin de ronda antes del scroll.
-- `co_reward`, `co_hands`, `co_interest`, `co_disc`, `co_extra`, `co_total`: desglose del dinero a cobrar. `co_disc` solo se usa con la **baraja amarilla** (2 $ por mano + 1 $ por descarte, en vez de interés). `co_extra` agrupa todos los ingresos de jokers de fin de ronda (Golden Joker, Cloud 9, Delayed Gratification, etc.).
+- `co_reward`, `co_hands`, `co_interest`, `co_disc`, `co_extra`, `co_total`: desglose del dinero a cobrar. `co_disc` solo se usa con la **baraja verde** (2 $ por mano + 1 $ por descarte, en vez de interés). `co_extra` agrupa todos los ingresos de jokers de fin de ronda (Golden Joker, Cloud 9, Delayed Gratification, etc.).
 - `co_req`: puntos que se necesitaban para ganar la ronda (mostrado en el panel para referencia).
 
 **Tienda**
@@ -150,6 +155,7 @@ def TIC():
 - `reroll`: coste actual del reroll. Empieza en `SHOP_BASE_REROLL` (5) y sube +1 por reroll.
 - `free_rr`: rerolls gratis disponibles esta visita. Se pone a `1` si tienes algún joker `F_FREE_REROLL` (Chaos the Clown).
 - `pack`: si hay un pack abierto, dict `{"k", "choices", "picks"}` con el tipo, las opciones que quedan y cuántas más puedes elegir. `None` cuando no hay pack abierto.
+- `aviso`, `aviso_t`: mensaje del selector del sobre (p. ej. `"SELL A JOKER FIRST"` si no tienes hueco) y los fotogramas que le quedan en pantalla (`AVISO_DUR` = 120).
 
 **Animación / feedback**
 - `up`: desplazamiento vertical de subida de la zona de cartas/botones (animación de entrada).
@@ -164,9 +170,11 @@ def TIC():
 - `sort_mode`: `0` = ordenar por **rango** (A, K, Q, J, 10, …, 2), `1` = ordenar por **palo**. Lo cambia el botón Rango/Palo.
 - `drag_card`, `drag_active`, `drag_px`, `drag_py`: estado del arrastre **de cartas** en la mano.
 - `drag_joker`: análogo para **arrastrar jokers** y reordenarlos. Comparte los campos `drag_px`/`drag_py`/`drag_active` con el de cartas (no se pueden estar arrastrando los dos a la vez).
+- `arrastre`: `("carta" o "joker", objeto, x, y)` de lo que se está arrastrando este fotograma, o `None`. Lo pinta `TIC()` al final (§2).
 
 **Selección de joker/consumible (para vender/usar)**
 - `sel_joker`: índice del joker seleccionado (`-1` = ninguno). Sobre el joker seleccionado aparece un botón `$N` para venderlo.
+- `sel_joker_obj`: el mismo joker, como objeto. Se cambian los dos juntos con `sel_joker_pon(i)`, y `recalc_hs()` llama a `sel_joker_sync()` para que el índice siga al joker cuando la lista cambia (§12.8).
 - `sel_consu`: índice del consumible seleccionado (`-1` = ninguno). Sobre el consumible seleccionado aparecen `$1` (vender) y `use` (usar el planeta).
 - Selección y arrastre comparten el clic sobre el joker: si el ratón **no se mueve** más de 3 px tras pulsar, se considera selección (toggle); si se mueve, se considera arrastre.
 
@@ -187,12 +195,16 @@ TIC-80 trae una fuente, pero aquí se usa una **fuente de píxeles propia** porq
 - `reset_col()`: restaura los slots que se suelen tocar (6, 7, 14, 2) a su valor por defecto.
 
 **Cajas y botones (estética Balatro):**
-- `dibujar_caja(x, y, w, h, iner, bor, sombra)`: dibuja una caja redondeada de `w×h` celdas de 8 px con tiles de esquina (243/244), borde y relleno (227/228). Con `sombra=True` añade la línea de sombra inferior de los botones sin pulsar. La usan `PrintBox` y `Boton.pintar`.
-- `PrintBox(col, x, y, w, h)`: caja decorativa (1 px más abajo de `y`). `col` indexa la paleta `Boton.paletas`, que define color interior y de borde.
+- `dibujar_caja(x, y, w, h, iner, bor, sombra, extra=0)`: dibuja una caja redondeada de `w×h` celdas de 8 px con tiles de esquina (243/244), borde y relleno (227/228). Con `sombra=True` añade la línea de sombra inferior de los botones sin pulsar. `extra` da píxeles de más de alto: la última fila se vuelve a pintar `extra` px más abajo (su parte de arriba es igual que una fila del medio, así que no se nota). La usan `PrintBox` y `Boton.pintar`.
+- `PrintBox(col, x, y, w, h, extra=0)`: caja decorativa (1 px más abajo de `y`). `col` indexa la paleta `Boton.paletas`, que define color interior y de borde.
 - `Boton`: clase para botones clicables.
   - `__init__`: guarda texto, posición, tamaño y si está activo, y resuelve sus dos colores desde `Boton.paletas`.
   - `pintar()`: dibuja la caja con sprites; si está clicado o inactivo lo dibuja "hundido" (desplazado 1 px) para dar feedback. Devuelve si está siendo clicado.
   - `clicado()`: comprueba si el ratón está pulsado dentro del rectángulo del botón.
+- `boton_clic(txt, col, x, y, w, h, active=True)`: pinta un `Boton` y devuelve `True` solo en el fotograma del clic. Sustituye al bloque "crear botón + pintar + comprobar clic" que antes se repetía ~15 veces.
+- `raton_en(x, y, w, h)`: si el ratón está dentro de un rectángulo. `clic_nuevo()`: si el botón izquierdo se acaba de pulsar este fotograma (usa `Clk0`).
+
+**Constantes de interfaz:** las coordenadas que comparten el dibujo y la detección de clics tienen nombre (`FILA_Y`, `JOK_X0`/`JOK_XF`, `CONSU_X0`/`CONSU_DX`, `MANO_X0`/`MANO_XF`/`MANO_Y`, `BOT_Y`, `JUG_Y0`/`JUG_Y`, `MAZO_X`/`MAZO_Y`), igual que los efectos de carta (`EF_BONUS` … `EF_LUCKY`) y las barajas (`BAR_ROJA` … `BAR_ERRATICA`). Si se mueve algo de sitio, se cambia en un solo lugar.
 
 **Constantes de descripción:**
 - `EFFECTS`: tupla con los nombres de efectos de carta (Bonus, Mult, Wild, Glass, Steel, Stone, Gold, Lucky). Indexada por `c.ef`.
@@ -250,8 +262,8 @@ Gestiona el conjunto de cartas.
 
 ## 7. Cartas, manos y niveles
 
-### `eval_hand()`, `chips_c(card)`
-- `eval_hand()`: devuelve las cartas seleccionadas de la mano (`c.sel`).
+### `cartas_seleccionadas()`, `chips_c(card)`
+- `cartas_seleccionadas()`: devuelve las cartas seleccionadas de la mano (`c.sel`). Antes se llamaba `eval_hand`.
 - `chips_c(card)`: fichas base que aporta una carta al puntuar. Stone = 50, As = 11, figuras (J/Q/K) = 10, resto = su número. Suma `card.bc` (bonus dinámico).
 
 ### Los **12 tipos de mano** (`H_*`)
@@ -302,6 +314,9 @@ Devuelve `(nombre, chips, mult)` listos para usar. Es lo que llaman tanto `handl
 Versión refactorizada de la función. Ya **no** devuelve `(nombre, chips, mult, scoring)`; ahora devuelve **solo** `(hand_index, scoring_cards)`. El nombre y los valores se sacan después con `hand_score`. Este cambio fue necesario para encajar el sistema de niveles: el detector identifica *qué* mano es, y la puntuación se calcula aparte mirando el nivel actual.
 
 Detecta las 12 manos en orden de prioridad: Flush Five → Flush House → Five of a Kind → Straight Flush → Four of a Kind → Full House → Flush → Straight → Three of a Kind → Two Pair → Pair → High Card. Para pareja/trío/póker devuelve **solo las cartas del grupo**; para escalera/color/full/flush five/etc. devuelve **todas** las cartas.
+
+### `analizar_cartas(cartas)` — el análisis compartido
+Devuelve `(cv, g, ecol, eesc)`: cuántas cartas hay de cada valor, el tamaño de los grupos de mayor a menor, si es color (5 del mismo palo; las Wild valen para cualquiera) y si es escalera (vale A-2-3-4-5 y 10-J-Q-K-A). Lo usan `detectar_mano` y `calcular_mano_flags`, que antes repetían el mismo análisis cada una por su lado.
 
 ### `calcular_mano_flags(cartas)` — ahora devuelve 12 booleanos
 A diferencia de `detectar_mano` (que da *la* mejor mano), `calcular_mano_flags` marca **todos** los tipos presentes a la vez. La lista resultante tiene **12 entradas** (una por `H_*`). La usan los jokers tipo "si la mano contiene X" (Jolly Joker, etc.), que deben dispararse aunque la mano sea un full. Si la mano está vacía devuelve `[False]*12`. `handle_play` la llama **sin las cartas Stone**, igual que `detectar_mano` (las Stone no cuentan para formar la mano, pero siempre puntúan).
@@ -533,11 +548,11 @@ Devuelve cuántas veces extra debe puntuar una carta: +1 por cada joker `F_RTRG`
 - `E_OPLAY` / `E_OSCORE` / `E_IND`: llaman a `apply_joker_effect(joker)` y lanzan la partícula correspondiente con `spawn_for_joker`.
 - `E_HELD`: si `ji = -1` aplica el ×1.5 de la carta Steel; si no, el +mult o ×mult del joker de mano retenida. La partícula sale **sobre la carta retenida** (usando `hand_card_center`).
 
-`apply_joker_effect(j)` es el gran `switch` por familia que modifica `tot_chips`/`tot_mult` (o `mn` en el caso de Rough Gem). Es donde se concreta el efecto numérico de cada familia. Casos destacables:
+`joker_aporte(j)` es la **única fuente** de lo que aporta un joker: devuelve una lista de `(tipo, valor)` con tipo `"chip"`, `"mult"`, `"xmult"` o `"money"`. La usan `apply_joker_effect(j)` (que lo suma a `tot_chips`/`tot_mult` o al dinero), `spawn_for_joker` (las partículas) y el tooltip (el valor actual). Antes el efecto y la partícula se calculaban por separado y podían no coincidir. Misprint (`F_RAND_M`) se queda fuera porque es al azar: lo tira `apply_joker_effect`. Casos destacables:
 
 - **`F_DECK_C`** suma `d[2] * len(gs["baraja"].cartas)` (las cartas **que quedan en el mazo**, no el total). Esto es importante: el valor de Blue Joker baja conforme repartes la mano dentro de la misma ronda.
 - **`F_XMUL_PER_EF`** cuenta cuántas cartas del mazo total (`gs["baraja"].total`) tienen `c.ef == d[3]`, y multiplica `tot_mult` por `1 + d[2] * count`. Ejemplo: Steel Joker (`d[2]=0.2, d[3]=5`) con 3 cartas Steel → ×1.6 mult.
-- `F_HELD_R` **no está** en `apply_joker_effect`: se aplica directamente dentro del `E_HELD` en `apply_event`.
+- `F_HELD_R` **no está** en `joker_aporte`: se aplica directamente dentro del `E_HELD` en `apply_event`.
 
 ### Avance temporal: `step_queue()`
 
@@ -550,7 +565,7 @@ Cuando se acaban los eventos, llama a `finalize_score()`.
 
 ### Cierre: `finalize_score()`
 
-- Aplica los **decrementos de jokers descendentes** (`F_FCHP_DEC`: Ice Cream −5). Si `st<=d[4]` (límite), el joker se destruye.
+- Aplica los **decrementos de jokers descendentes** (`F_FCHP_DEC`: Ice Cream −5). Si `st<=d[4]` (límite), el joker se destruye (la selección se recoloca sola, ver §12.8).
 - Quita del mazo total las Glass que se han roto (`c.bk`).
 - Recalcula el tamaño de mano (`recalc_hs`).
 - Suma `tot_chips * tot_mult` a `rs` (la puntuación de la ronda).
@@ -562,7 +577,7 @@ Cuando se acaban los eventos, llama a `finalize_score()`.
 
 ### Tamaño de mano dinámico: `recalc_hs()`
 
-Parte de 8, suma el modificador de cada joker `F_HS_MOD` equipado (Stuntman: −2) y `F_HAND_SIZE` (Juggler: +1), con mínimo de 1. Hay que llamarlo **siempre que cambie la lista de jokers** (al equipar, al destruir uno, al iniciar partida). Por eso aparece en `finalize_score`, en los handlers de descarte, al comprar/vender jokers y al arrancar partida.
+Parte de 8, suma el modificador de cada joker `F_HS_MOD` equipado (Stuntman: −2) y `F_HAND_SIZE` (Juggler: +1), con mínimo de 1. Hay que llamarlo **siempre que cambie la lista de jokers** (al equipar, al destruir uno, al iniciar partida). Por eso aparece en `finalize_score`, en los handlers de descarte, al comprar/vender jokers y al arrancar partida. Al final llama a `sel_joker_sync()` para que la selección siga al joker seleccionado.
 
 ### Visual de la puntuación: `update_event_visuals()`
 
@@ -578,7 +593,7 @@ Las partículas son los números que flotan al puntuar (los "+8", "x3", "$1"…)
 - `draw_diamond(cx, cy, w, h, col)`: dibuja el rombo de fondo de la partícula con dos triángulos (`tri`).
 - `card_center_xy(ci)` / `joker_center_xy(ji)` / `hand_card_center(hi)`: calculan dónde nace la partícula (sobre una carta puntuando, sobre un joker, o sobre una carta retenida en mano respectivamente). Replican la misma fórmula de reparto horizontal que `print_cards`/`print_jokers` para que la partícula caiga justo encima del elemento correcto. **`joker_center_xy`** y `joker_x_pos` tienen un caso especial para `n==1` (un único joker se centra en el carril en vez de quedarse pegado a la izquierda).
 - `spawn_particle(cx, cy, value, kind)`: crea la partícula y, según el tipo, dispara el **shake** del contador del HUD asociado (fichas, mult o dinero).
-- `spawn_for_joker(ji)`: elige qué partícula lanzar según la familia del joker (el valor que muestra coincide con lo que aplica `apply_joker_effect`, incluyendo los casos nuevos `F_XMUL_PER_EF` y `F_FMUL_DEC`).
+- `spawn_for_joker(ji)`: lanza las partículas de lo que el joker acaba de aportar, sacado de `joker_aporte` (el mismo valor que aplica `apply_joker_effect`). Si son varias (Scholar: fichas y mult) salen una encima de otra.
 - `update_and_draw_particles()`: cada fotograma anima todas las partículas (escala de aparición/permanencia/desaparición, subida vertical) y descarta las muertas.
 
 Los **shakes** (`shake_chips`, `shake_mult`, `shake_nombre`, `shake_money`) son temporizadores que se ponen a 15 (o 22) al recibir un golpe y bajan cada fotograma; mientras tanto, `shake_offset` desplaza el contador correspondiente con la onda amortiguada.
@@ -588,7 +603,7 @@ Los **shakes** (`shake_chips`, `shake_mult`, `shake_nombre`, `shake_money`) son 
 ## 11. Dibujo de cartas, jokers y consumibles en pantalla
 
 ### `draw_card_at(carta, xc, yc)`
-Pinta una sola carta en `(xc, y)` con todas sus capas: marco/efecto, palo, valor (teñido a rojo si el palo es impar), sello y, si tiene edición, la animación foil/holo encima. Está extraída para poder reutilizarse desde dos sitios distintos de `print_cards`: una vez en su posición "normal" dentro de la fila, y otra vez **siguiendo al ratón** cuando se está arrastrando.
+Pinta una sola carta en `(xc, y)` con todas sus capas: marco/efecto, palo, valor (teñido a rojo si el palo es impar), sello y, si tiene edición, la animación foil/holo encima. Está extraída para poder reutilizarse desde dos sitios: `print_cards` (la carta en su sitio de la fila) y `TIC()` (la carta **siguiendo al ratón** cuando se arrastra).
 
 ### `sort_hand()`
 Ordena `gs["hand"]` según `gs["sort_mode"]`:
@@ -604,7 +619,7 @@ Dibuja una fila de cartas repartidas entre `x` y `xf`. Calcula la separación pa
 **Selección + drag & drop (solo si `permite_seleccion` *y* `cards is hand`):** la entrada se distingue entre clic-simple (toggle de selección) y arrastre-real (reordenar la mano) por **umbral de movimiento**:
 
 1. Al pulsar sobre una carta se guarda como candidata en `gs["drag_card"]` y se anota la posición `gs["drag_px"]/drag_py`. Aún no se hace nada con `c.sel`.
-2. Mientras el ratón está pulsado, si se aleja más de 3 px del punto de pulsación, `gs["drag_active"]` pasa a `True`. La carta arrastrada **se omite del bucle de dibujo** y se pinta al final siguiendo al ratón con `draw_card_at(dc, mx-8, my-12)`.
+2. Mientras el ratón está pulsado, si se aleja más de 3 px del punto de pulsación, `gs["drag_active"]` pasa a `True`. La carta arrastrada **se omite del bucle de dibujo**: se apunta en `gs["arrastre"]` y `TIC()` la pinta al final del fotograma, siguiendo al ratón (`mx-8, my-12`), por encima de todo.
 3. Al soltar el ratón (`not mb and gs["Clk0"]`):
    - Si fue un **arrastre real** (`drag_active`), se calcula el índice destino con `round((mx - x - 8) / sep)`, se hace `hand.pop(oi)` + `hand.insert(ni, dc)`. Las demás cartas no se desplazan para hacer hueco; simplemente al soltar la carta encaja en el slot más cercano.
    - Si fue un **clic limpio** (sin movimiento), se conmuta `dc.sel` con el tope habitual de 5 seleccionadas.
@@ -619,7 +634,7 @@ El orden manual conseguido con drag **dura hasta el siguiente reparto**; tras un
 Análogo para los jokers; el parámetro **`oy`** es un desplazamiento vertical para poder pintar la fila de jokers en cualquier altura (lo usa el sistema de scroll para dibujar dos copias). Reparte, flota, resalta el `active_joker_idx`, gestiona el *hover* con retardo para el tooltip (`j.ht`) y, si un joker no tiene sprite, dibuja la **caja de respaldo** con su valor calculado según la familia. El tooltip se difiere a `gs["tt_target"]` igual que con las cartas, y solo se registra si `fase_puntos < 2` (no durante la animación de cash out).
 
 **Drag + selección sobre jokers** (solo si `gm in (1, 3, 4)` y `fase_puntos == 0` y `oy == 0`; la pantalla de ciegas se añadió en oct 2026):
-- Funciona igual que con las cartas: clic limpio → **toggle de selección** (`gs["sel_joker"]`); arrastre con movimiento > 3 px → **reordenar**.
+- Funciona igual que con las cartas: clic limpio → **toggle de selección** (`sel_joker_pon`); arrastre con movimiento > 3 px → **reordenar** (la selección se va con su joker). El joker arrastrado también se pinta al final, desde `TIC()`, para que no quede detrás de las ciegas, la tienda o el sobre.
 - Si seleccionas un joker, se deselecciona el consumible (`sel_consu = -1`), y viceversa. Solo puede haber un objeto seleccionado al tiempo.
 
 Para el caso `n == 1` se centra el único joker en el carril (mismo arreglo que en `joker_center_xy`).
@@ -634,17 +649,24 @@ Dibuja la fila de **planetas** que tienes en `gs["consu"]`. Solo hay 2 huecos (l
 ### `dibujar_planeta(x, y, p, sc=1)`
 Pinta el planeta: dos halos del sprite #71 (uno normal y otro espejado) más el sprite concreto del planeta sobre ellos. Acepta el parámetro `sc` para tamaño doble en el pack picker.
 
-### `tt_planeta(p, xc, yc)` y `tt_card` — tooltips
+### Tooltips: `dibujar_tooltip`, `tt_card`, `tt_joker`, `tt_planeta`
 
-- `tt_card(c, xc, yc)`: dibuja una caja con el nombre de la carta (`"K of HEARTS"` etc., en inglés), sus chips, y si tiene efecto o sello muestra el **nombre exacto** desde `EFFECTS` y `SEAL_NAMES` (p. ej. `"Gold Card"`, `"Red Seal"`). También clampea la caja para que no se salga por arriba (`ty < 0`) ni por abajo (`ty + th > 136`); si se saldría, se la pone encima de la carta en vez de debajo.
-- `tt_joker(j, xj, yj)`: nombre + descripción corta (`joker_value_text`).
-- `tt_planeta(p, xc, yc)`: 4 líneas debajo del nombre — `LVL N>N+1` (el salto de nivel), `+XF` (chips por nivel), `+XM` (mult por nivel) y el nombre del tipo de mano que sube. Lee del `HAND_DEF` correspondiente.
+Los tres tooltips se pintan con `dibujar_tooltip(titulo, lineas, xc, yc, centrar)`: caja exterior oscura con el nombre (paleta 7) y caja interior gris con las líneas (paleta 5), igual que en Balatro. La exterior lleva 1 px de más de alto (`PrintBox(..., extra=1)`) para que la interior no toque su borde de abajo. Sale debajo del objeto; si no cabe, encima; y nunca se sale de la pantalla por ningún lado.
+
+Las líneas admiten **marcas de color**: `"~m+4 MULT~n"` pinta `+4 MULT` en el color del mult y vuelve al normal. `TT_COL` da el color de cada marca (`~c` fichas, `~m` mult, `~x` ×mult, `~$` dinero, `~o` palabra clave), elegidos para leerse sobre el gris; `TT_TXT` es el color normal (blanco). `draw_text_marcas` las pinta y `texto_largo` mide el texto sin contarlas.
+
+- `tt_card(c, xc, yc)`: el nombre de la carta (`"K of HEARTS"`), sus fichas y, si los tiene, su efecto, sello y edición (`EFFECTS`, `SEAL_NAMES`).
+- `tt_joker(j, xj, yj)`: nombre, descripción (`JDESC`), lo que aporta ahora si va cambiando (`joker_actual` → `"(CURRENTLY +12 MULT)"`, solo para las familias de `JOKER_VIVO`) y la rareza (`RAREZA_TXT`).
+- `tt_planeta(p, xc, yc)`: qué mano sube, cuánto (`+mult` y `+fichas` por nivel) y cómo está la mano ahora (`LVL N: fichas X mult`).
+
+### `JDESC`: la descripción de cada joker
+Diccionario `id → tupla de líneas`, escritas como en Balatro pero con lo que admite la fuente de 3×5 (sin minúsculas, `%` ni `!`). `{1}`, `{2}` y `{3}` se cambian por `d[2]`, `d[3]` y `d[4]` del joker (`rellenar_desc`), así el texto sale de los mismos números que usa el motor. Los 18 jokers `#M` describen lo que hacen **aquí**, no lo que hacen en Balatro.
 
 ### `joker_value_text(j)` y `JVT`
 
 Para que el tooltip y la caja de respaldo den la misma info, las descripciones se generan con `JVT`, un diccionario `familia → patrón de plantilla` con la forma `(prefijo1, modo1, sufijo, modo2, sufijo_extra)`. `_jvt_v(j, d, m)` resuelve cada "modo": 1 = `d[2]`, 2 = `d[3]`, 3 = `j.st`, 4 = `round(j.xm, 2)`. Esto evita un `switch` gigante; añadir un joker que use una familia existente no requiere tocar `joker_value_text`.
 
-`F_HELD_R` se trata como caso especial fuera de `JVT` (porque el prefijo depende de `d[4]`).
+`F_HELD_R` se trata como caso especial fuera de `JVT` (porque el prefijo depende de `d[4]`). Desde la 0.5.1 el tooltip usa `JDESC`; `joker_value_text` queda de respaldo por si un joker nuevo aún no tiene descripción.
 
 ### `draw_joker_box(xj, yj, j, sc=1)` y `JBOX`
 Mismo patrón pero para la **caja de respaldo** (cuando el joker no tiene sprite). `JBOX` es otro diccionario con plantillas de 3 elementos `(prefijo, modo, color)`. La función pinta un rectángulo, el código de 3 letras del joker, y debajo el valor calculado. `F_HELD_R` y `F_DECK_C` son casos especiales porque dependen del estado del juego (mano y mazo), no solo de parámetros estáticos.
@@ -654,9 +676,9 @@ Mismo patrón pero para la **caja de respaldo** (cuando el joker no tiene sprite
 ## 12. Las seis pantallas
 
 ### `PantallaMenu(raton)` (gm=0)
-Dibuja el logo, el lomo de la baraja seleccionada con su descripción, y botones `<`/`>` para cambiar de baraja y `play` para empezar. Al pulsar `play` llama a `nueva_partida()`, que resetea los recursos (`hd/ds/mn/ant/rd`, `hs=8`, partículas, shakes, `blind=0`, `voff=0`, `co_wait=0`, **`hl=[1]*12`**, **`hp=[False]*12`**, **`sel_joker=-1`**, **`sel_consu=-1`**, `pack=None`), genera y mezcla el mazo, **equipa los jokers de prueba**, llama a `recalc_hs()` y **va directamente a la pantalla de blind** (`gm = 4`). Ya no entra al juego: pasa por la selección de blind primero.
+Dibuja el logo, el lomo de la baraja seleccionada con su descripción, y botones `<`/`>` para cambiar de baraja y `play` para empezar. Al pulsar `play` llama a `nueva_partida()`, que resetea los recursos (`hd/ds/mn/ant/rd`, `hs=8`, partículas, shakes, `blind=0`, `voff=0`, `co_wait=0`, **`hl=[1]*12`**, **`hp=[False]*12`**, **`sel_joker=-1`**, **`sel_consu=-1`**, `pack=None`), genera y mezcla el mazo, empieza **sin jokers**, llama a `recalc_hs()` y **va directamente a la pantalla de blind** (`gm = 4`). Ya no entra al juego: pasa por la selección de blind primero.
 
-> El joker de prueba está en `nueva_partida()`, en la línea `gs["jokers"] = [Joker(43)]  #DBG` (43 = Ice Cream). Cambia ese número por el `id` del joker que quieras probar, o déjalo en `[]` para la versión final.
+> Para probar un joker concreto, cambia en `nueva_partida()` la línea `gs["jokers"] = []` por `gs["jokers"] = [Joker(id)]` y márcala con `#DBG`.
 
 ### `PantallaJuego(raton)` (gm=1)
 Es la pantalla principal. Para no superar el límite de variables locales de pocketpy, su lógica está repartida en auxiliares:
@@ -817,12 +839,15 @@ Pinta el picker:
 - Si la opción es un planeta, se le **superpone el sprite #106** centrado debajo, como adorno (el "halo" del planeta a tamaño grande).
 - Al hover, se muestra el tooltip del ítem (`tt_joker` o `tt_planeta`).
 - Al clicar, `pack_pick(idx)` añade el ítem a `jokers` o `consu` según corresponda (distinguiendo por `hasattr(it, "xm")`), comprueba huecos, y decrementa `picks`.
+- Debajo de las opciones sale el aviso de `pack_pick` (`gs["aviso"]`) mientras `aviso_t > 0`.
+- Con el sobre abierto, `PantallaTienda` también llama a `draw_sell_use_buttons`: puedes vender jokers y usar o vender planetas para hacer hueco.
 - Botón `skip` para descartar el pack sin tomar todas las opciones.
 
 ### `pack_pick(idx)`
 
 - Si el ítem es un joker (`hasattr(it, "xm")`): comprueba huecos de joker, lo añade a `gs["jokers"]`, recalcula `hs`.
 - Si es planeta: comprueba huecos de consumibles, lo añade a `gs["consu"]`.
+- **Sin hueco**: no lo coge y el sobre sigue abierto; pone el aviso (`"SELL A JOKER FIRST"` o `"USE OR SELL FIRST"`) durante `AVISO_DUR` fotogramas. Antes el sobre se cerraba y se perdía la elección.
 - En ambos casos lo saca de `p["choices"]` (no `pop(idx)` después de añadir — se hace antes de comprobar para no añadirlo dos veces).
 - Decrementa `picks`. Si `picks <= 0` o no quedan opciones, cierra el pack.
 
@@ -838,7 +863,8 @@ Esto añade interactividad in-game a los jokers y consumibles equipados.
 
 ### Estado
 
-- `gs["sel_joker"]`: índice del joker seleccionado, `-1` si ninguno.
+- `gs["sel_joker"]`: índice del joker seleccionado, `-1` si ninguno, y `gs["sel_joker_obj"]` el mismo joker como objeto. Se cambian siempre juntos con `sel_joker_pon(i)`.
+- `sel_joker_sync()` (lo llama `recalc_hs`, y `print_jokers` al reordenar) vuelve a buscar el índice del joker seleccionado. Si se destruye un joker a su izquierda (Ice Cream, Gros Michel, Ramen, Mr. Bones…) o lo arrastras a otro hueco, la selección se va con él; si el destruido es el seleccionado, no queda ninguno. Antes la selección saltaba al joker de al lado.
 - `gs["sel_consu"]`: índice del consumible seleccionado, `-1` si ninguno.
 - Solo puede haber uno seleccionado al tiempo (los click handlers de `print_jokers` y `print_consumibles` se ocupan de mutarlos a la vez).
 
@@ -851,7 +877,7 @@ Esto añade interactividad in-game a los jokers y consumibles equipados.
 
 `draw_sell_use_buttons(raton)` se llama desde las tres pantallas que tienen jokers visibles (`PantallaJuego`, `PantallaTienda`, `PantallaBlind`). **Solo actúa con `fase_puntos == 0`**: antes se podía vender un joker mientras se puntuaba la mano y la cola de eventos apuntaba a un índice que ya no existía (el juego petaba). Dibuja botones pequeños (`Boton` de 2×1 tiles) sobre el ítem seleccionado:
 
-- **Joker seleccionado**: un único botón `$N` debajo del joker con su precio de venta. Al pulsarlo → `sell_joker(idx)` que añade el dinero, quita el joker, `sel_joker = -1` y recalcula `hs`.
+- **Joker seleccionado**: un único botón `$N` debajo del joker con su precio de venta. Al pulsarlo → `sell_joker(idx)` que añade el dinero, quita el joker, deselecciona (`sel_joker_pon(-1)`) y recalcula `hs`.
 - **Consumible seleccionado**: dos botones, `$1` (vender, fija 1 $) y `use` (usar el planeta). Al usar, `use_planeta(idx)` sube el nivel de la mano correspondiente y consume el planeta.
 
 `joker_x_pos(ji, n)` es un auxiliar que reproduce la fórmula de reparto horizontal de `print_jokers` para saber **dónde** poner el botón pequeño justo debajo del joker correcto.
@@ -865,7 +891,7 @@ Esto añade interactividad in-game a los jokers y consumibles equipados.
 
 ## 13. Código de prueba
 
-Esta versión no trae modo debug (no hay `DEBUG`, `get_event_name` ni `draw_debug`). Lo único de prueba es la línea marcada `#DBG` en `nueva_partida()`, que da un Ice Cream gratis al empezar cada partida. Para la versión final hay que dejarla en `gs["jokers"] = []`.
+Esta versión no trae modo debug (no hay `DEBUG`, `get_event_name` ni `draw_debug`) ni líneas `#DBG`: desde la 0.5.1 la partida empieza sin jokers. Para probar uno, ver la nota de §12 (`PantallaMenu`).
 
 ---
 
@@ -904,14 +930,13 @@ Cosas que **aún no** están implementadas:
 - **`E_OPLAY` / `joker_fires_play`**: el camino "joker actúa al jugar la mano" existe pero hoy nunca dispara (reservado).
 - **`shake_offset` en cartas/jokers**: la función está lista pero solo se usa en los contadores del HUD; falta engancharla al hover/clic de cartas y jokers.
 - **Orden manual no persistente**: el orden conseguido arrastrando cartas a mano dura solo hasta el siguiente reparto (`repartir()` llama a `sort_hand()` y reordena según `sort_mode`).
-- **Tooltips de joker/planeta**: las cajas se clampean en X (no se salen por los lados) pero no en Y (pueden salirse por arriba/abajo si el joker está en una posición extrema). `tt_card` sí clampea en Y.
+- **Selector de sobres**: las opciones se centran en `x = 120` y no en el panel, así que los sobres de 4-5 opciones se meten por la izquierda en el HUD; el nombre del sobre y `Choose N` se pintan encima de la fila de jokers.
 - **Strings en español pendientes**: `DECK_INFO` (texto de cada baraja en el menú) y los textos de `draw_cash_out` están en español aunque el resto de la UI está en inglés. Hay que traducirlos para consistencia.
 - **Skip de blind / Tag system**: no se puede saltar un blind (en Balatro real, saltar te da un "Tag" con recompensa).
 - **Animaciones de transición**: pasar de juego → cash out tiene scroll, pero tienda → blind y blind → juego son cortes secos.
 - **18 jokers `#M`**: son reales pero aquí tienen un efecto provisional (en `JDEFS` está escrito el efecto real). Varios necesitan sistemas que no existen todavía: tarots (Cartomancer, Vagabond), saltar ciega (Throwback), elegir ciega (Burglar, Marble Joker, Madness), añadir cartas al mazo (Hologram), planetas usados (Constellation), cartas en la mano repetidas (Mime), palo de la ronda (Castle) o descartes de figuras (Faceless Joker). Triboulet y Yorick además deberían ser legendarios.
 - **Precios por rareza** (`JCOST`) en vez del precio de cada joker.
 - **Cavendish / Gros Michel**: Cavendish sale si tienes Gros Michel equipado; en Balatro sale cuando Gros Michel se ha extinguido.
-- **Joker de prueba** `#DBG` en `nueva_partida()` (ver §13).
 - Muchos jokers aún no tienen `JSPR` y se dibujan con la caja de respaldo (ver §8 para la lista de los que sí).
 
 ---
@@ -919,7 +944,7 @@ Cosas que **aún no** están implementadas:
 ## 16. Glosario rápido
 
 **Claves de `gs` más usadas**
-- `gm` pantalla (0 menú · 1 juego · 2 visor · 3 tienda · 4 blind · 5 game over) · `fase_puntos` 0=interacción / 1=puntuando / 2=subiendo pantalla / 3=cash out fijo
+- `gm` pantalla (`GM_*`: 0 menú · 1 juego · 2 visor · 3 tienda · 4 blind · 5 game over) · `fase_puntos` (`FP_*`) 0=interacción / 1=puntuando / 2=subiendo pantalla / 3=cash out fijo
 - `hand` mano · `b` cartas jugadas · `jokers` jokers · `consu` consumibles (planetas) · `baraja` mazo
 - `hd` manos · `ds` descartes · `mn` dinero · `hs` tamaño de mano · `rs` puntuación de ronda · `ant` ante · `rd` ronda · `jslots` huecos de joker
 - `tot_chips`/`tot_mult` acumuladores de la mano · `scoring_cards` cartas que puntúan · `mano_flags` (12 bools) tipos presentes · `hand_idx_play` índice de la mano jugada
@@ -929,7 +954,8 @@ Cosas que **aún no** están implementadas:
 - `blind` 0/1/2 (small/big/boss) · `voff` scroll vertical 0→136 al ganar · `co_wait` pausa pre-scroll
 - `co_reward`/`co_hands`/`co_interest`/`co_disc`/`co_extra`/`co_total` desglose del cash out · `co_req` puntos requeridos
 - `sort_mode` 0=rango / 1=palo · `drag_card`/`drag_joker`/`drag_active`/`drag_px`/`drag_py` estado del arrastre
-- `sel_joker`/`sel_consu` ítem seleccionado para vender/usar (`-1` si ninguno)
+- `sel_joker`/`sel_consu` ítem seleccionado para vender/usar (`-1` si ninguno) · `sel_joker_obj` el joker seleccionado (objeto)
+- `arrastre` lo que se arrastra, pintado al final · `aviso`/`aviso_t` mensaje del selector de sobres
 - `shop_j`/`shop_p` slots de tienda · `pack` pack abierto (dict o None) · `reroll`/`free_rr` coste/rerolls gratis
 - `tt_target` tooltip diferido (`("card", …)` / `("joker", …)` / `("planeta", …)`)
 - `visor_from` pantalla desde la que se entró al visor
@@ -939,6 +965,7 @@ Cosas que **aún no** están implementadas:
 - `F_*` familias de joker (patrones de comportamiento)
 - `SC_*` condiciones de los jokers sticky
 - `H_*` tipos de mano de póker (12 índices de `mano_flags`/`hl`/`hp`)
+- `GM_*` pantallas · `FP_*` fases de puntuación · `EF_*` efectos de carta · `BAR_*` barajas
 
 **Tablas estáticas**
 - `JDEFS` definición de cada joker `(nombre, familia, *params)`; el índice = `id`. 93 jokers (ids 0–92)
@@ -951,20 +978,22 @@ Cosas que **aún no** están implementadas:
 - `EDUR` duración en frames de cada tipo de evento
 - `PARTICLE_KINDS` color y prefijo de cada tipo de partícula
 - `EFFECTS`/`SEAL_NAMES`/`SEAL_COL` nombres y paletas de efectos de carta y sellos
-- `JVT`/`JBOX` plantillas para tooltips y caja de respaldo de joker (evitan switches gigantes)
+- `JDESC` descripción de cada joker · `JOKER_VIVO` familias con "CURRENTLY" · `TT_COL`/`TT_TXT`/`RAREZA_TXT` colores del tooltip
+- `JVT`/`JBOX` plantillas de respaldo para tooltips y caja de joker (evitan switches gigantes)
 - `mini_font` fuente de píxeles 3×5
 - `ANTE_BASE` / `BLIND_MULT` / `BLIND_REWARD` / `BLIND_NAME` / `INTEREST_CAP` / `CASH_SPEED` / `CASH_WAIT` / `SCREEN_H` — parámetros del sistema de rondas y cash out
 
 **Funciones clave por capa**
-- Dibujo: `draw_text`, `dibujar_caja`, `PrintBox`, `Boton`, `dibujar_joker`, `dibujar_planeta`, `draw_card_at`, `draw_tapete`, `draw_contadores`
-- Reglas de mano: `detectar_mano` (→ `(hi, sc)`), `hand_score(hi)` (→ `(nombre, chips, mult)`), `calcular_mano_flags` (→ 12 bools), `chips_c`
+- Dibujo: `draw_text`, `dibujar_caja`, `PrintBox`, `Boton`, `boton_clic`, `dibujar_joker`, `dibujar_planeta`, `draw_card_at`, `draw_tapete`, `draw_contadores`
+- Ratón: `raton_en`, `clic_nuevo`
+- Reglas de mano: `cartas_seleccionadas`, `analizar_cartas`, `detectar_mano` (→ `(hi, sc)`), `hand_score(hi)` (→ `(nombre, chips, mult)`), `calcular_mano_flags` (→ 12 bools), `chips_c`
 - Mano / orden: `sort_hand` (rango / palo, respeta `gs["sort_mode"]`)
-- Motor de puntuación: `build_event_queue` → `step_queue` → `apply_event`/`apply_joker_effect` → `finalize_score`
+- Motor de puntuación: `build_event_queue` → `step_queue` → `apply_event`/`apply_joker_effect` (con `joker_aporte`) → `finalize_score`
 - Disparo de jokers: `joker_fires_score`, `joker_fires_ind`, `count_retriggers`, `update_sticky`
-- Tooltips: `tt_card`, `tt_joker`, `tt_planeta`, `joker_value_text`
+- Tooltips: `dibujar_tooltip`, `draw_text_marcas`, `tt_card`, `tt_joker`, `tt_planeta`, `joker_actual`, `rellenar_desc`, `joker_value_text`
 - Pantallas: `PantallaMenu`, `PantallaJuego` (+`draw_money_box`/`draw_side_hud`/`draw_score_hud`/`handle_discard`/`handle_play`/`handle_sort`/`check_mazo_click`), `PantallaVisor`, `PantallaTienda` (+`draw_shop_jslot`/`draw_shop_pslot`/`draw_pack_picker`), `PantallaBlind` (+`blind_panel`), `PantallaGameOver`
 - Tienda y packs: `enter_shop`, `roll_shop`, `roll_shop_items`, `do_reroll`, `buy_joker`, `buy_planeta`, `open_pack`, `pack_pick`, `pack_skip`, `roll_joker_unique`, `roll_planeta_unique`
-- Sell/use: `sell_joker`, `sell_consu`, `use_planeta`, `joker_sell_value`, `joker_x_pos`, `draw_sell_use_buttons`
+- Sell/use: `sell_joker`, `sell_consu`, `use_planeta`, `joker_sell_value`, `joker_x_pos`, `draw_sell_use_buttons`, `sel_joker_pon`, `sel_joker_sync`, `jokers_de`
 - Cash out / rondas: `blind_req`, `ante_base`, `cash_out_money`, `joker_round_money`, `start_round_win`, `try_mr_bones`, `reset_round`, `collect_cash_out`, `shop_next_round`, `start_blind`, `draw_cash_out`
 - Setup: `nueva_partida`, `base_hands`, `base_discards`, `start_money`, `joker_slots`, `splash_active`, `has_free_reroll`, `recalc_hs`, `roll_rarity`, `roll_joker`, `joker_price`
 
@@ -981,11 +1010,20 @@ El código se prueba con los dos intérpretes pocketpy que trae TIC-80: el de la
 - Los comentarios y las líneas en blanco dentro de funciones funcionan bien en las dos.
 - **Solo ASCII**: el editor de TIC-80 no muestra tildes ni ñ.
 
-**Tamaño:** el fichero ordenado pesa unos 122 KB. El editor de TIC-80 gratis admite 64 KB de código y el PRO 512 KB (8 bancos); al pegar más de lo que cabe, el editor lo recorta sin avisar.
+**Tamaño:** el fichero ordenado pesa unos 137 KB. El editor de TIC-80 gratis admite 64 KB de código y el PRO 512 KB (8 bancos); al pegar más de lo que cabe, el editor lo recorta sin avisar.
 
 ---
 
 ## 18. Novedades
+
+### 0.5.1 (15 oct 2026) — Descripciones, limpieza y arreglos
+
+- Tooltips nuevos con el mismo aspecto para cartas, jokers y planetas (§11): descripción de los 93 jokers (`JDESC`) con colores, rareza y valor actual; el de planeta, con el nivel actual de la mano. Nunca se salen de la pantalla.
+- Lo que se arrastra se pinta al final del fotograma, por encima de todo (§2).
+- Sobres con los huecos llenos: aviso y el sobre sigue abierto; se puede vender o usar para hacer hueco (§12.7).
+- Bugs arreglados: la selección de joker saltaba al de al lado cuando se destruía o se movía un joker (§12.8); la baraja amarilla da $14 ($10 extra, como en Balatro); ya no se empieza con el Ice Cream de prueba.
+- Limpieza sin cambiar el juego: constantes `GM_*`, `FP_*`, `EF_*`, `BAR_*` y de interfaz (§4); `boton_clic`, `raton_en`, `clic_nuevo`, `jokers_de`; `joker_aporte` como única fuente del valor de cada joker (§9); `analizar_cartas` (§7).
+- Verificación: el arnés de pruebas compara cada fotograma (dibujo y estado) entre versiones; probado en los pocketpy de TIC-80 1.1 y 1.3 y en el emulador.
 
 ### 0.5.0 (8 oct 2026) — Python ordenado (TIC-80 PRO)
 

@@ -19,6 +19,30 @@ juego se queda por debajo de 1.0 hasta que esté completo.
 > las versiones antiguas usan nombres cortos, sangría de 1 espacio y casi ningún
 > comentario. La v0.5.0 es la primera hecha con TIC-80 PRO.
 
+## v0.5.1 — 2026-10-15 — Descripciones, limpieza y arreglos
+
+- **Tooltips nuevos**: cada uno de los 93 jokers tiene su descripción al
+  estilo Balatro, con colores para fichas, mult, dinero y palabras clave, su
+  rareza y, en los que van cambiando, cuánto aportan ahora ("CURRENTLY").
+  El de planeta dice qué mano sube, cuánto, y cómo está la mano ahora.
+  Cartas, jokers y planetas comparten el mismo aspecto y ya nunca se salen de
+  la pantalla.
+- Las cartas y los jokers que arrastras se pintan siempre por encima de todo
+  (antes quedaban detrás de los textos, las ciegas y la tienda).
+- Sobres con los huecos llenos: antes el joker o planeta elegido se perdía.
+  Ahora sale un aviso y el sobre sigue abierto, y puedes vender jokers o
+  usar/vender planetas para hacer hueco.
+- Bugs arreglados: al destruirse o moverse un joker la selección saltaba al de
+  al lado; la baraja amarilla daba $10 en total en vez de $10 extra ($14);
+  cada partida empezaba con un Ice Cream de prueba.
+- Código más limpio sin cambiar el juego: constantes con nombre (`EF_*`,
+  `BAR_*`, `GM_*`, `FP_*` y las coordenadas de la interfaz), helpers para
+  botones y clics (`boton_clic`, `raton_en`, `clic_nuevo`, `jokers_de`), una
+  sola función para lo que aporta cada joker (`joker_aporte`) y un solo
+  análisis de la mano (`analizar_cartas`).
+- Probado en el emulador de TIC-80 y con un bot que juega partidas enteras en
+  los pocketpy de TIC-80 1.1 y 1.3.
+
 ## v0.5.0 — 2026-10-08 — Reescritura legible con TIC-80 PRO
 
 - Primera versión hecha con **TIC-80 PRO**: el código ya no tiene que caber en

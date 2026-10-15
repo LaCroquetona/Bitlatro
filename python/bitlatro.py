@@ -1,8 +1,8 @@
 # title:   Bitlatro
 # author:  Croquetona
 # desc:    this is a compact version of Balatro
-# license: MIT License (change this to your license of choice)
-# version: 0.5.0
+# license: MIT License
+# version: 0.5.1
 # script:  python
 
 # =============================================================================
@@ -25,27 +25,29 @@
 #    7. Estado global ............ gs
 #   LOGICA
 #    8. Animacion ................ onda_y, shake_offset, counter
-#    9. Cajas y botones .......... dibujar_caja, PrintBox, Boton
+#    9. Cajas, botones, raton .... dibujar_caja, PrintBox, Boton, boton_clic,
+#                                  raton_en, clic_nuevo
 #   10. Modelo ................... Carta, Joker, Planeta, Mazo
-#   11. Reglas de mano ........... detectar_mano, calcular_mano_flags, ...
-#   12. Reglas de partida ........ manos/descartes/dinero base, recalc_hs, ...
+#   11. Reglas de mano ........... analizar_cartas, detectar_mano, ...
+#   12. Reglas de partida ........ manos/descartes/dinero base, recalc_hs,
+#                                  jokers_de, ...
 #   13. Jokers: cuando actuan .... joker_fires_*, count_retriggers, update_sticky
-#   14. Jokers y cartas: efecto .. apply_joker_effect, apply_card_ef
+#   14. Jokers y cartas: efecto .. joker_aporte, apply_joker_effect, apply_card_ef
 #   15. Particulas ............... spawn_particle, update_and_draw_particles
 #   16. Motor de puntuacion ...... build_event_queue, step_queue, finalize_score
 #   17. Fin de ronda y cash out .. start_round_win, cash_out_money, ...
 #   18. Tienda y sobres .......... roll_shop, buy_*, open_pack, ...
 #   19. Vender y usar ............ sell_joker, use_planeta, ...
 #   DIBUJO Y PANTALLAS
-#   20. Textos de joker .......... JVT, joker_value_text, JBOX
+#   20. Textos de joker .......... JVT, joker_value_text, JDESC, JBOX
 #   21. Cartas, jokers, planetas . draw_card_at, print_cards, print_jokers, ...
-#   22. Tooltips ................. tt_card, tt_joker, tt_planeta
+#   22. Tooltips ................. dibujar_tooltip, tt_card, tt_joker, tt_planeta
 #   23. HUD ...................... draw_side_hud, draw_score_hud, draw_cash_out
 #   24. Pantallas ................ PantallaMenu, PantallaJuego, ... (gs["gm"])
 #   25. Arranque y TIC()
 #
 #  GLOSARIO DE ABREVIATURAS (claves de gs y variables cortas)
-#   gm  pantalla actual       fp / fase_puntos  fase de la mano
+#   gm  pantalla (GM_*)       fp / fase_puntos  fase de la mano (FP_*)
 #   hd  manos restantes       ds  descartes restantes
 #   mn  dinero                hs  tamano de mano (cartas que se reparten)
 #   rs  puntuacion de ronda   ant / rd  ante / ronda
@@ -171,15 +173,16 @@ def reset_col():
 # Los palos impares (corazones y diamantes) se pintan en rojo.
 SUITS = ("SPADES", "HEARTS", "CLUBS", "DIAMONDS")
 
-# Efectos / mejoras de carta (c.ef), por indice:
-#   1 Bonus  +30 fichas al puntuar
-#   2 Mult   +4 mult al puntuar
-#   3 Wild   cuenta como cualquier palo
-#   4 Glass  x2 mult al puntuar, 1 entre 4 de romperse
-#   5 Steel  x1.5 mult si se queda en la mano (no jugada)
-#   6 Stone  50 fichas fijas, no cuenta para formar la mano
-#   7 Gold   $3 al final de ronda si se queda en la mano
-#   8 Lucky  1/5: +20 mult, 1/15: +$20
+# Efectos / mejoras de carta (c.ef). 0 = sin efecto.
+EF_BONUS = 1  # +30 fichas al puntuar
+EF_MULT = 2   # +4 mult al puntuar
+EF_WILD = 3   # cuenta como cualquier palo
+EF_GLASS = 4  # x2 mult al puntuar, 1 entre 4 de romperse
+EF_STEEL = 5  # x1.5 mult si se queda en la mano (no jugada)
+EF_STONE = 6  # 50 fichas fijas, no cuenta para formar la mano
+EF_GOLD = 7   # $3 al final de ronda si se queda en la mano
+EF_LUCKY = 8  # 1/5: +20 mult, 1/15: +$20
+# Nombre de cada efecto (por indice EF_*), para el tooltip
 EFFECTS = ("", "Bonus", "Mult", "Wild", "Glass", "Steel", "Stone", "Gold", "Lucky")
 
 # Sellos (c.st). De momento solo se muestran en el tooltip.
@@ -188,18 +191,24 @@ SEAL_NAMES = ("", "Red", "Blue", "Gold", "Purple")
 # sprite del sello (#60) con cambios de paleta; todavia no se usa.
 SEAL_COL = ((3, 2), (11, 12), (10, 9), (1, 13))
 
-# Barajas del menu (Mazo.dt = indice). Cada entrada:
+# Barajas del menu (Mazo.dt), con su nombre en Balatro
+BAR_ROJA = 0        # Red Deck:       +1 descarte
+BAR_AZUL = 1        # Blue Deck:      +1 mano
+BAR_VERDE = 2       # Green Deck:     sin interes; $2 por mano y $1 por descarte que queden
+BAR_AMARILLA = 3    # Yellow Deck:    empiezas con $10 extra ($14)
+BAR_NEGRA = 4       # Black Deck:     +1 hueco de joker, -1 mano
+BAR_DAMERO = 5      # Checkered Deck: solo picas y corazones (cada carta x2)
+BAR_ABANDONADA = 6  # Abandoned Deck: sin figuras (del 1 al 10)
+BAR_ERRATICA = 7    # Erratic Deck:   52 cartas con valor y palo al azar
+
+# Dibujo y texto de cada baraja en el menu (por indice BAR_*):
 #   (sprite_del_lomo, color_para_el_slot_2, lineas_de_descripcion)
 # y cada linea es (texto, color).
-#   0  +1 descarte                       4  +1 hueco de joker, -1 mano
-#   1  +1 mano                           5  solo picas y corazones (x2)
-#   2  sin interes: $2/mano y $1/desc.   6  solo del 1 al 10 (sin figuras)
-#   3  empiezas con $10                  7  52 cartas con valor/palo al azar
 DECK_INFO = (
  (64, 2, (("tienes un", 2), ("descarte mas", 2))),
  (64, 7, (("tienes una", 7), ("mano mas", 7))),
  (64, 1, (("no genera interese,", 1), ("2$ por mano y 1$ por", 1), ("descarte restante", 1))),
- (64, 8, (("comienzas con 10$", 8),)),
+ (64, 8, (("comienzas con 14$", 8),)),
  (64, 15, (("tienes un joker", 14), ("mas, pero una", 14), ("mano menos", 14))),
  (65, 2, (("una baraja que", 2), ("solo tiene picas", 14), ("y corazones", 2))),
  (66, 2, (("una baraja", 9), ("con numeros", 10), ("del 1 al 10", 9))),
@@ -255,7 +264,7 @@ PLANETS = (
  ("URANUS", H_DPA, 214),
  ("NEPTUNE", H_SF, 215),
  ("PLUTO", H_HC, 216),
- ("X", H_5K, 217),
+ ("PLANET X", H_5K, 217),
  ("CERES", H_FH, 218),
  ("ERIS", H_5KF, 219),
 )
@@ -324,7 +333,7 @@ F_FIRST_RTRG = 39     # +d[2] retriggers a la primera carta puntuada
 F_HAND_SIZE = 40      # +d[2] tamano de mano
 F_BONES = 41          # te salva de perder si llegas a 1/4 de la ciega (y se destruye)
 F_FREE_REROLL = 42    # 1 reroll gratis en cada visita a la tienda
-F_XMUL_PER_EF = 43    # x(1 + d[2] * cartas del mazo con efecto d[3]) mult
+F_XMUL_PER_EF = 43    # x(1 + d[2] * cartas del mazo con efecto d[3] (EF_*)) mult
 F_EOR_SV = 44         # su valor de venta sube $d[2] cada ronda ganada
 F_MIDAS = 45          # las figuras puntuadas se vuelven Gold
 F_GTICK = 46          # +$4 por cada carta Gold puntuada
@@ -434,7 +443,7 @@ JDEFS = [
  ("Burglar", F_HMUL, 4, H_HC),                                   #  69  poco            #M real: al elegir ciega +3 manos y pierdes los descartes
  ("Pareidolia", F_RMUL, 8, (1, 11, 12, 13)),                     #  70  poco            #M real: todas las cartas cuentan como figura
  ("Stone Joker", F_FCHP, 25),                                    #  71  poco            #M real: +25 fichas por carta Stone del mazo
- ("Steel Joker", F_XMUL_PER_EF, 0.2, 5),                         #  72  poco
+ ("Steel Joker", F_XMUL_PER_EF, 0.2, EF_STEEL),                  #  72  poco
  ("Showman", F_FCHP, 15),                                        #  73  poco            #M real: los jokers pueden repetirse en la tienda
  ("Throwback", F_FMUL, 6),                                       #  74  poco            #M real: X0.25 por ciega saltada (no hay saltar ciega)
  ("Hologram", F_HMUL, 10, H_FH),                                 #  75  poco            #M real: gana X0.25 por carta anadida al mazo
@@ -493,7 +502,7 @@ for _jid, _rar in JRAR.items():
 #                          colores de la paleta: asi muchos jokers comparten
 #                          el mismo dibujo base tenido de otro color
 # OJO: va por id igual que JDEFS.
-# Comprobado contra los sprites de Bitlatro0.9.tic (oct 2026): las claves estan
+# Comprobado contra los sprites del cartucho (oct 2026): las claves estan
 # bien, no hay desfase (60 palomitas = Popcorn, 62 reloj de arena = Delayed
 # Gratification, 63 grafica = To the Moon, 65 papeleta = Hanging Chad).
 JSPR = {
@@ -543,7 +552,27 @@ JSPR = {
 # =============================================================================
 #  5. RONDAS, CIEGAS Y TIENDA: DATOS
 # =============================================================================
-SCREEN_H = 136  # alto de la pantalla de TIC-80 (el ancho es 240)
+SCREEN_W = 240  # ancho de la pantalla de TIC-80
+SCREEN_H = 136  # alto
+
+# Posiciones fijas (px) de la pantalla de juego y la tienda. Las usan tanto
+# el dibujo como la deteccion del raton y las particulas: si se mueve algo,
+# se mueve en todos los sitios a la vez.
+FILA_Y = 8       # y de la fila de jokers y de la de consumibles
+JOK_X0 = 83      # fila de jokers: repartidos de x = JOK_X0 ...
+JOK_XF = 172     #   ... a x = JOK_XF (un joker solo va centrado)
+CONSU_X0 = 189   # consumibles: el primero en x = CONSU_X0 ...
+CONSU_DX = 18    #   ... y cada uno CONSU_DX px a la derecha
+MAX_CONSU = 2    # huecos de consumible
+MANO_X0 = 80     # mano: repartida de x = MANO_X0 ...
+MANO_XF = 193    #   ... a x = MANO_XF
+MANO_Y = 140     #   y = MANO_Y - up (up sube de 0 a 50 al empezar la ronda)
+BOT_Y = 166      # botones play / discard / orden: y = BOT_Y - up
+JUG_Y0 = 83      # cartas jugadas: suben de y = JUG_Y0 ...
+JUG_Y = 53       #   ... a y = JUG_Y mientras puntuan
+MAZO_X = 216     # lomo del mazo (16 x 24 px), abajo a la derecha
+MAZO_Y = 104
+MAX_SEL = 5      # cartas que se pueden seleccionar a la vez
 
 # Fichas base de la ciega pequena en los antes 1-8. Desde el ante 9 se
 # multiplica x1.6 por cada ante extra (ver ante_base).
@@ -570,6 +599,7 @@ PACK_DEF = (
 )
 PACK_NAME = ("BUF", "JBF", "MGB", "CEL", "JCL", "MCL")
 PACK_COL = (3, 3, 3, 4, 4, 4)
+AVISO_DUR = 120  # fotogramas que se ve el aviso del sobre (2 s)
 
 
 # =============================================================================
@@ -608,14 +638,28 @@ PARTICLE_KINDS = {
 # =============================================================================
 #  7. ESTADO GLOBAL: gs
 # =============================================================================
+# Pantallas (gs["gm"]). TIC() llama a la funcion Pantalla* que toque.
+GM_MENU = 0
+GM_JUEGO = 1
+GM_VISOR = 2      # visor del mazo
+GM_TIENDA = 3
+GM_CIEGAS = 4     # seleccion de ciega
+GM_GAMEOVER = 5
+
+# Fases de la pantalla de juego (gs["fase_puntos"])
+FP_ELEGIR = 0     # eligiendo cartas
+FP_PUNTUAR = 1    # reproduciendo la cola de eventos de la mano
+FP_SUBIR = 2      # ronda ganada: la pantalla sube hacia el cash out
+FP_COBRAR = 3     # cash out quieto, esperando el clic para cobrar
+
 # TODO lo que cambia durante la partida vive aqui. Cualquier funcion lo lee
 # y lo modifica directamente.
 gs = {
  # --- pantalla e input ---
- "gm": 0,             # pantalla: 0 menu, 1 juego, 2 visor, 3 tienda, 4 ciegas, 5 game over
+ "gm": GM_MENU,       # pantalla actual (GM_*)
  "Clk0": False,       # el raton estaba pulsado el fotograma anterior.
                       #   clic nuevo = pulsado ahora y no antes; soltar = al reves
- "visor_from": 1,     # pantalla a la que vuelve el visor del mazo
+ "visor_from": GM_JUEGO,  # pantalla a la que vuelve el visor del mazo
  "tt_target": None,   # tooltip a pintar al final del fotograma, ver TIC()
  # --- menu ---
  "DS": 0,             # baraja elegida en el menu (0-7)
@@ -624,7 +668,7 @@ gs = {
  # --- cartas ---
  "baraja": None,      # el Mazo (se crea al final del archivo)
  "jokers": [],        # jokers equipados (Joker)
- "consu": [],         # consumibles (Planeta), maximo 2
+ "consu": [],         # consumibles (Planeta), como mucho MAX_CONSU
  "hand": [],          # cartas en la mano
  "b": [],             # cartas jugadas en la mano que se esta puntuando
  "hs": 8,             # tamano de mano, lo recalcula recalc_hs()
@@ -641,8 +685,7 @@ gs = {
  "hl": [1] * 12,      # nivel de cada tipo de mano (indice H_*)
  "hp": [False] * 12,  # que tipos de mano has jugado alguna vez
  # --- puntuacion de la mano (motor de eventos) ---
- "fase_puntos": 0,    # 0 eligiendo cartas, 1 puntuando, 2 subiendo al cash out,
-                      #   3 cash out quieto esperando clic
+ "fase_puntos": FP_ELEGIR,  # fase de la pantalla de juego (FP_*)
  "tot_chips": 0,      # fichas acumuladas de la mano
  "tot_mult": 1,       # mult acumulado de la mano
  "scoring_cards": [], # cartas que puntuan de verdad (p.ej. solo la pareja)
@@ -667,7 +710,7 @@ gs = {
  "co_reward": 0,      # desglose del cobro: recompensa de la ciega,
  "co_hands": 0,       #   manos restantes,
  "co_interest": 0,    #   interes,
- "co_disc": 0,        #   descartes restantes (solo baraja 2),
+ "co_disc": 0,        #   descartes restantes (solo baraja verde),
  "co_extra": 0,       #   jokers y cartas Gold,
  "co_total": 0,       #   total
  "co_req": 0,         # puntos que pedia la ciega
@@ -677,6 +720,8 @@ gs = {
  "reroll": 5,         # precio del reroll
  "free_rr": 0,        # rerolls gratis que quedan
  "pack": None,        # sobre abierto: {"k", "choices", "picks"} o None
+ "aviso": "",         # mensaje del selector del sobre (p.ej. sin hueco)
+ "aviso_t": 0,        #   fotogramas que le quedan en pantalla
  # --- visor del mazo ---
  "pal": "total",      # que se ve: "total" (todo el mazo) o "actual" (lo que queda)
  "vc": None,          # cache de las estadisticas del visor
@@ -687,7 +732,9 @@ gs = {
  "drag_active": False,  # el raton se ha movido > 3 px: es arrastre, no clic
  "drag_px": 0,        # donde se pulso
  "drag_py": 0,
- "sel_joker": -1,     # joker seleccionado para vender (-1 ninguno)
+ "arrastre": None,    # ("carta"/"joker", objeto, x, y): se pinta al final, ver TIC()
+ "sel_joker": -1,    # joker seleccionado para vender (-1 ninguno)
+ "sel_joker_obj": None,  # ese mismo joker (objeto), ver sel_joker_pon
  "sel_consu": -1,     # consumible seleccionado para vender/usar (-1 ninguno)
 }
 
@@ -734,59 +781,78 @@ def counter(st, cur, end, inc, rep):
 
 
 # =============================================================================
-#  9. CAJAS Y BOTONES
+#  9. CAJAS, BOTONES Y RATON
 # =============================================================================
 # Las cajas estilo Balatro se dibujan con tiles de 8x8: esquinas (243/244),
 # bordes y relleno (227/228). Los colores 6 (borde) y 7 (interior) del sprite
 # se cambian con set_col segun la paleta elegida.
 
-def dibujar_caja(x, y, w, h, iner, bor, sombra):
+def raton_en(x, y, w, h):
+ # True si el raton esta dentro del rectangulo de w x h px en (x, y).
+ m = mouse()
+ return m[0] >= x and m[0] < x + w and m[1] >= y and m[1] < y + h
+
+
+def clic_nuevo():
+ # True solo en el fotograma en que se pulsa el boton izquierdo (en el
+ # anterior estaba suelto, ver gs["Clk0"]). Mantenerlo pulsado no repite.
+ return mouse()[2] and not gs["Clk0"]
+
+
+def dibujar_caja(x, y, w, h, iner, bor, sombra, extra=0):
  # Caja de w x h tiles en (x, y). Si sombra es True, dibuja ademas la linea
- # de sombra de abajo (los botones sin pulsar la tienen).
+ # de sombra de abajo (los botones sin pulsar la tienen). extra = px de mas
+ # de alto: la ultima fila se pinta otra vez 'extra' px mas abajo (su parte
+ # de arriba es igual que una fila del medio, asi que no se nota el empalme).
  for i in range(w):
   for j in range(h):
-   if i == 0:
-    # columna izquierda
-    if j == h - 1:
-     if h == 1:
-      spr(244, x, y, 0)
+   desp = (0,)
+   if j == h - 1 and h > 1 and extra > 0:
+    desp = (0, extra)
+   for e in desp:
+    yj = y + j * 8 + e
+    if i == 0:
+     # columna izquierda
+     if j == h - 1:
+      if h == 1:
+       spr(244, x, yj, 0)
+      else:
+       spr(243, x, yj, 0, 1, 2)
+      if sombra:
+       line(x + 1, yj + 8, x + 7, yj + 8, bor)
+       pix(x, yj + 7, bor)
+     elif j == 0:
+      spr(243, x, yj, 0)
      else:
-      spr(243, x, y + (j * 8), 0, 1, 2)
-     if sombra:
-      line(x + 1, y + (j * 8) + 8, x + 7, y + (j * 8) + 8, bor)
-      pix(x, y + (j * 8) + 7, bor)
-    elif j == 0:
-     spr(243, x, y, 0)
-    else:
-     spr(227, x, y + (j * 8), 0, 1, 0, 3)
-   elif i == w - 1:
-    # columna derecha
-    if j == h - 1:
-     if h == 1:
-      spr(244, x + (i * 8), y + (j * 8), 0, 1, 0, 2)
+      spr(227, x, yj, 0, 1, 0, 3)
+    elif i == w - 1:
+     # columna derecha
+     if j == h - 1:
+      if h == 1:
+       spr(244, x + (i * 8), yj, 0, 1, 0, 2)
+      else:
+       spr(243, x + (i * 8), yj, 0, 1, 0, 2)
+      if sombra:
+       line(x + (i * 8), yj + 8, x + (i * 8) + 6, yj + 8, bor)
+       pix(x + (i * 8) + 7, yj + 7, bor)
+     elif j == 0:
+      spr(243, x + (i * 8), yj, 0, 1, 1)
      else:
-      spr(243, x + (i * 8), y + (j * 8), 0, 1, 0, 2)
-     if sombra:
-      line(x + (i * 8), y + (j * 8) + 8, x + (i * 8) + 6, y + (j * 8) + 8, bor)
-      pix(x + (i * 8) + 7, y + (j * 8) + 7, bor)
-    elif j == 0:
-     spr(243, x + (i * 8), y, 0, 1, 1)
+      spr(227, x + (i * 8), yj, 0, 1, 0, 1)
     else:
-     spr(227, x + (i * 8), y + (j * 8), 0, 1, 0, 1)
-   else:
-    # columnas del medio
-    if j == h - 1:
-     if h == 1:
-      spr(228, x + (i * 8), y + (j * 8), 0)
+     # columnas del medio
+     if j == h - 1:
+      if h == 1:
+       spr(228, x + (i * 8), yj, 0)
+      else:
+       spr(227, x + (i * 8), yj, 0, 1, 2)
+      if sombra:
+       line(x + (i * 8), yj + 8, x + (i * 8) + 8, yj + 8, bor)
+     elif j == 0:
+      spr(227, x + (i * 8), yj, 0)
      else:
-      spr(227, x + (i * 8), y + (j * 8), 0, 1, 2)
-     if sombra:
-      line(x + (i * 8), y + (j * 8) + 8, x + (i * 8) + 8, y + (j * 8) + 8, bor)
-    elif j == 0:
-     spr(227, x + (i * 8), y, 0)
-    else:
-     spr(227, x + (i * 8), y + (j * 8), 0)
-     line(x + (i * 8), y + (j * 8), x + (i * 8) + 8, y + (j * 8), iner)
+      spr(227, x + (i * 8), yj, 0)
+      line(x + (i * 8), yj, x + (i * 8) + 8, yj, iner)
 
 
 class Boton:
@@ -824,22 +890,26 @@ class Boton:
 
  def clicado(self):
   # True mientras el boton izquierdo este pulsado dentro del boton.
-  # Para un clic unico, quien lo llama comprueba ademas 'not gs["Clk0"]'.
-  mx = mouse()[0]
-  my = mouse()[1]
-  mb = mouse()[2]
-  if mb:
-   if mx >= self.x and mx < self.x + self.w * 8 and my >= self.y and my < self.y + self.h * 8:
-    return True
-  return False
+  # Para un clic unico usar boton_clic (o comprobar ademas clic_nuevo()).
+  return mouse()[2] and raton_en(self.x, self.y, self.w * 8, self.h * 8)
 
 
-def PrintBox(col, x, y, w, h):
+def boton_clic(txt, col, x, y, w, h, active=True):
+ # Pinta un Boton y devuelve True si se acaba de hacer clic en el.
+ # OJO: un boton inactivo se pinta hundido pero el clic se detecta igual;
+ # si en ese caso no debe pasar nada, quien lo llama lo comprueba.
+ bt = Boton(txt, col, x, y, w, h, active)
+ bt.pintar()
+ return bt.clicado() and not gs["Clk0"]
+
+
+def PrintBox(col, x, y, w, h, extra=0):
  # Caja decorativa (sin texto ni clic) de w x h tiles, 1 px mas abajo de y.
+ # extra = px de mas de alto (ver dibujar_caja).
  iner, bor = Boton.paletas.get(col, (7, 6))
  set_col(6, bor)
  set_col(7, iner)
- dibujar_caja(x, y + 1, w, h, iner, bor, False)
+ dibujar_caja(x, y + 1, w, h, iner, bor, False, extra)
  reset_col()
 
 
@@ -890,10 +960,8 @@ class Joker:
    self.xm = float(d[2])
   elif d[1] in (F_VAMP, F_LUCKY):
    self.xm = 1.0
-  elif d[1] == F_FCHP_DEC:
-   self.st = d[2]
-  elif d[1] == F_FMUL_DEC:
-   self.st = d[2]
+  elif d[1] in (F_FCHP_DEC, F_FMUL_DEC):
+   self.st = d[2]  # empiezan en d[2] y van bajando
   self.an = random.randint(0, 1000)  # desfase de flotacion
   self.ht = 0                        # fotogramas con el raton encima
 
@@ -927,23 +995,23 @@ class Mazo:
   # Crea las cartas segun el tipo de baraja.
   self.cartas = []
   dt = self.dt
-  if dt in (0, 1, 2, 3, 4):
+  if dt in (BAR_ROJA, BAR_AZUL, BAR_VERDE, BAR_AMARILLA, BAR_NEGRA):
    # baraja normal de 52
    for suit in range(4):
     for value in range(1, 14):
      self.cartas.append(Carta(dt, suit, value, 0, 0, 0))
-  elif dt == 5:
+  elif dt == BAR_DAMERO:
    # solo picas y corazones, cada carta repetida
    for suit in range(2):
     for value in range(1, 14):
      for _ in range(2):
       self.cartas.append(Carta(dt, suit, value, 0, 0, 0))
-  elif dt == 6:
+  elif dt == BAR_ABANDONADA:
    # solo del 1 al 10
    for suit in range(4):
     for value in range(1, 11):
      self.cartas.append(Carta(dt, suit, value, 0, 0, 0))
-  elif dt == 7:
+  elif dt == BAR_ERRATICA:
    # 52 cartas con palo y valor al azar
    for i in range(52):
     suit = int(random.randint(0, 3))
@@ -991,15 +1059,15 @@ class Mazo:
 # =============================================================================
 #  11. REGLAS DE MANO
 # =============================================================================
-def eval_hand():
- # Cartas seleccionadas de la mano.
+def cartas_seleccionadas():
+ # Cartas seleccionadas de la mano, en su orden.
  return [c for c in gs["hand"] if c.sel]
 
 
 def chips_c(card):
  # Fichas que da una carta al puntuar: Stone 50, As 11, figuras 10, resto
  # su numero. Mas las fichas permanentes de Hiker (bc).
- if card.ef == 6:
+ if card.ef == EF_STONE:
   return 50 + card.bc
  if card.va == 1:
   return 11 + card.bc
@@ -1008,28 +1076,38 @@ def chips_c(card):
  return card.va + card.bc
 
 
-def detectar_mano(cartas):
- # Devuelve (tipo_de_mano, cartas_que_puntuan): la MEJOR mano que forman.
- # Para pareja / doble pareja / trio / poker solo puntua el grupo; para el
- # resto puntuan todas. Las Wild (ef 3) no cuentan para el palo, asi que
- # encajan en cualquier color.
- if len(cartas) == 0:
-  return (-1, [])
+def analizar_cartas(cartas):
+ # Lo que comparten detectar_mano y calcular_mano_flags. Devuelve
+ # (cv, g, ecol, eesc):
+ #   cv    {valor: cuantas cartas}
+ #   g     tamanos de los grupos de valor, de mayor a menor
+ #   ecol  es color: 5 cartas de un palo (las Wild valen para cualquiera)
+ #   eesc  es escalera: 5 valores seguidos (A-2-3-4-5 y 10-J-Q-K-A valen)
  cv = {}  # valor -> cuantas cartas
  cs = {}  # palo  -> cuantas cartas (sin contar Wild)
  for c in cartas:
   cv[c.va] = cv.get(c.va, 0) + 1
-  if c.ef != 3:
+  if c.ef != EF_WILD:
    cs[c.su] = cs.get(c.su, 0) + 1
- g = sorted(cv.values(), reverse=True)  # tamanos de los grupos, de mayor a menor
+ g = sorted(cv.values(), reverse=True)
  vals = sorted(cv.keys())
  n = len(cartas)
- ecol = (len(cs) <= 1 and n == 5)  # es color
- eesc = False                       # es escalera (A-2-3-4-5 y 10-J-Q-K-A valen)
+ ecol = (len(cs) <= 1 and n == 5)
+ eesc = False
  if n == 5 and len(cv) == 5:
   r = vals[-1] - vals[0]
   eesc = (r == 4) or vals == [1, 2, 3, 4, 5] or vals == [1, 10, 11, 12, 13]
- e5i = (n == 5 and g[0] == 5)  # cinco iguales
+ return cv, g, ecol, eesc
+
+
+def detectar_mano(cartas):
+ # Devuelve (tipo_de_mano, cartas_que_puntuan): la MEJOR mano que forman.
+ # Para pareja / doble pareja / trio / poker solo puntua el grupo; para el
+ # resto puntuan todas.
+ if len(cartas) == 0:
+  return (-1, [])
+ cv, g, ecol, eesc = analizar_cartas(cartas)
+ e5i = (len(cartas) == 5 and g[0] == 5)  # cinco iguales
  # de mejor a peor
  if e5i and ecol:
   return (H_5KF, cartas[:])
@@ -1066,23 +1144,10 @@ def calcular_mano_flags(cartas):
  # A diferencia de detectar_mano, marca TODOS los tipos de mano que contiene
  # la jugada (un full tambien "contiene" pareja y trio). Lo usan los jokers
  # tipo "si la mano contiene X". Devuelve 12 booleanos (indice H_*).
- cv = {}
- cs = {}
- for c in cartas:
-  cv[c.va] = cv.get(c.va, 0) + 1
-  if c.ef != 3:
-   cs[c.su] = cs.get(c.su, 0) + 1
- g = sorted(cv.values(), reverse=True)
- vals = sorted(cv.keys())
- n = len(cartas)
- ecol = (len(cs) <= 1 and n == 5)
- eesc = False
- if n == 5 and len(cv) == 5:
-  r = vals[-1] - vals[0]
-  eesc = (r == 4) or vals == [1, 2, 3, 4, 5] or vals == [1, 10, 11, 12, 13]
  f = [False] * 12
- if n == 0:
+ if len(cartas) == 0:
   return f
+ cv, g, ecol, eesc = analizar_cartas(cartas)
  f[H_PAR] = g[0] >= 2
  f[H_DPA] = len(g) >= 2 and g[0] >= 2 and g[1] >= 2
  f[H_TRI] = g[0] >= 3
@@ -1111,40 +1176,42 @@ def hand_score(hi):
 #  12. REGLAS DE PARTIDA (segun la baraja y los jokers)
 # =============================================================================
 def base_hands():
- # Manos por ronda: 4, +1 con la baraja 1, -1 con la baraja 4.
+ # Manos por ronda: 4, +1 con la azul, -1 con la negra.
  dt = gs["baraja"].dt
  v = 4
- if dt == 1:
+ if dt == BAR_AZUL:
   v += 1
- elif dt == 4:
+ elif dt == BAR_NEGRA:
   v -= 1
  return v
 
 
 def base_discards():
- # Descartes por ronda: 4, +1 con la baraja 0.
+ # Descartes por ronda: 4, +1 con la roja.
  dt = gs["baraja"].dt
  v = 4
- if dt == 0:
+ if dt == BAR_ROJA:
   v += 1
  return v
 
 
 def start_money():
- if gs["baraja"].dt == 3:
-  return 10
+ # $4, y la amarilla $10 mas (como en Balatro: $14)
+ if gs["baraja"].dt == BAR_AMARILLA:
+  return 14
  return 4
 
 
 def joker_slots():
- if gs["baraja"].dt == 4:
+ if gs["baraja"].dt == BAR_NEGRA:
   return 6
  return 5
 
 
 def recalc_hs():
  # Tamano de mano: 8 + lo que sumen/resten los jokers (minimo 1).
- # Hay que llamarlo SIEMPRE que cambie la lista de jokers.
+ # Hay que llamarlo SIEMPRE que cambie la lista de jokers. De paso
+ # recoloca la seleccion (sel_joker_sync).
  hs = 8
  for j in gs["jokers"]:
   d = JDEFS[j.id]
@@ -1155,20 +1222,46 @@ def recalc_hs():
  if hs < 1:
   hs = 1
  gs["hs"] = hs
+ sel_joker_sync()
+
+
+def sel_joker_pon(i):
+ # Selecciona el joker i de la fila (-1 = ninguno). Guarda tambien el
+ # objeto, para que la seleccion siga al joker aunque la lista cambie.
+ if 0 <= i < len(gs["jokers"]):
+  gs["sel_joker"] = i
+  gs["sel_joker_obj"] = gs["jokers"][i]
+ else:
+  gs["sel_joker"] = -1
+  gs["sel_joker_obj"] = None
+
+
+def sel_joker_sync():
+ # Tras cambiar la lista de jokers (vender, destruir, reordenar): el
+ # indice vuelve a apuntar al joker seleccionado, o a ninguno si ya no
+ # esta. Antes la seleccion saltaba al joker de al lado.
+ j = gs["sel_joker_obj"]
+ if j is not None and j in gs["jokers"]:
+  gs["sel_joker"] = gs["jokers"].index(j)
+ else:
+  sel_joker_pon(-1)
+
+
+def jokers_de(f):
+ # Jokers equipados de la familia f (F_*), en el orden de la fila.
+ r = []
+ for j in gs["jokers"]:
+  if JDEFS[j.id][1] == f:
+   r.append(j)
+ return r
 
 
 def splash_active():
- for j in gs["jokers"]:
-  if JDEFS[j.id][1] == F_SPLASH:
-   return True
- return False
+ return len(jokers_de(F_SPLASH)) > 0
 
 
 def has_free_reroll():
- for j in gs["jokers"]:
-  if JDEFS[j.id][1] == F_FREE_REROLL:
-   return True
- return False
+ return len(jokers_de(F_FREE_REROLL)) > 0
 
 
 def ante_base(a):
@@ -1203,14 +1296,14 @@ def joker_fires_score(j, card):
  d = JDEFS[j.id]
  f = d[1]
  if f == F_SMUL or f == F_SCHP or f == F_SMONEY:
-  return card.su == d[3] or card.ef == 3
+  return card.su == d[3] or card.ef == EF_WILD
  if f == F_RMUL or f == F_RCHP:
   return card.va in d[3]
  if f == F_RCM:
   return card.va in d[4]
  if f == F_SXPROB:
   # la probabilidad se tira aqui: si falla, el evento ni se encola
-  if card.su != d[4] and card.ef != 3:
+  if card.su != d[4] and card.ef != EF_WILD:
    return False
   return random.randint(1, d[3]) == 1
  return False
@@ -1222,10 +1315,16 @@ def joker_fires_ind(j):
  # (eventos E_HELD y retriggers).
  d = JDEFS[j.id]
  f = d[1]
- if f in (F_FMUL, F_FCHP, F_XMUL, F_STENCIL, F_CHIP_DISC, F_RAMEN):
+ # siempre
+ if f in (F_FMUL, F_FCHP, F_XMUL, F_STENCIL, F_CHIP_DISC, F_RAMEN, F_NJOK_M,
+          F_BULL, F_RAND_M, F_HS_MOD, F_DECK_C, F_XMUL_PER_EF):
   return True
- if f in (F_NJOK_M, F_BULL, F_RAND_M):
-  return True
+ # si llevan algo acumulado
+ if f in (F_STICKY_M, F_STICKY_C, F_FCHP_DEC, F_FMUL_DEC):
+  return j.st > 0
+ if f in (F_VAMP, F_LUCKY):
+  return j.xm > 1.0
+ # con condicion
  if f in (F_HMUL, F_HCHP, F_HXMUL):
   return gs["mano_flags"][d[3]]
  if f == F_SZMUL:
@@ -1234,22 +1333,8 @@ def joker_fires_ind(j):
   return gs["ds"] == 0
  if f == F_HD_LAST_X:
   return gs["hd"] == 1
- if f in (F_STICKY_M, F_STICKY_C):
-  return j.st > 0
  if f == F_BOOTS:
   return gs["mn"] >= d[3]
- if f == F_HS_MOD:
-  return True
- if f == F_FCHP_DEC:
-  return j.st > 0
- if f == F_DECK_C:
-  return True
- if f == F_FMUL_DEC:
-  return j.st > 0
- if f == F_XMUL_PER_EF:
-  return True
- if f in (F_VAMP, F_LUCKY):
-  return j.xm > 1.0
  return False
 
 
@@ -1307,57 +1392,70 @@ def update_sticky(b, sc, flags):
 # =============================================================================
 #  14. JOKERS Y CARTAS: QUE HACEN
 # =============================================================================
-def apply_joker_effect(j):
- # Aplica el efecto numerico de un joker a tot_chips / tot_mult (o al
- # dinero). F_HELD_R no esta aqui: se aplica dentro del evento E_HELD.
+def joker_aporte(j):
+ # Lo que aporta el joker j ahora mismo, como lista de (tipo, valor):
+ #   "chip" suma fichas, "mult" suma mult, "xmult" multiplica el mult,
+ #   "money" da dinero. [] = no aporta un numero por si mismo.
+ # Es la UNICA fuente de esos valores: la usan apply_joker_effect (para
+ # aplicarlo), spawn_for_joker (particulas) y el tooltip (valor actual).
+ # Misprint (F_RAND_M) no esta: es al azar, lo tira apply_joker_effect.
+ # F_HELD_R tampoco: se aplica por carta en el evento E_HELD.
  d = JDEFS[j.id]
  f = d[1]
  if f in (F_FMUL, F_HMUL, F_SMUL, F_RMUL, F_SZMUL, F_NODISC_M):
-  gs["tot_mult"] += d[2]
- elif f in (F_FCHP, F_HCHP, F_SCHP, F_RCHP):
-  gs["tot_chips"] += d[2]
- elif f in (F_XMUL, F_RXFIRST, F_HD_LAST_X, F_HXMUL):
-  gs["tot_mult"] *= d[2]
- elif f in (F_RAMEN, F_VAMP, F_LUCKY):
-  gs["tot_mult"] *= j.xm
- elif f == F_STENCIL:
-  gs["tot_mult"] *= max(1, gs["jslots"] - len(gs["jokers"]) + 1)
- elif f == F_CHIP_DISC:
-  gs["tot_chips"] += d[2] * gs["ds"]
- elif f == F_NJOK_M:
-  gs["tot_mult"] += d[2] * len(gs["jokers"])
- elif f == F_BULL:
-  gs["tot_chips"] += d[2] * gs["mn"]
- elif f == F_STICKY_M:
-  gs["tot_mult"] += j.st
- elif f == F_STICKY_C:
-  gs["tot_chips"] += j.st
- elif f == F_RAND_M:
-  gs["tot_mult"] += random.randint(0, d[2])
- elif f == F_BOOTS:
-  gs["tot_mult"] += d[2] * (gs["mn"] // d[3])
- elif f == F_RCM:
-  gs["tot_chips"] += d[2]
-  gs["tot_mult"] += d[3]
- elif f == F_SXPROB:
-  gs["tot_mult"] *= d[2]
- elif f == F_SMONEY:
-  gs["mn"] += d[2]
- elif f == F_HS_MOD:
-  gs["tot_chips"] += d[2]
- elif f == F_FCHP_DEC:
-  gs["tot_chips"] += j.st
- elif f == F_DECK_C:
+  return [("mult", d[2])]
+ if f in (F_FCHP, F_HCHP, F_SCHP, F_RCHP, F_HS_MOD):
+  return [("chip", d[2])]
+ if f in (F_XMUL, F_RXFIRST, F_HD_LAST_X, F_HXMUL, F_SXPROB):
+  return [("xmult", d[2])]
+ if f in (F_RAMEN, F_VAMP, F_LUCKY):
+  return [("xmult", j.xm)]
+ if f in (F_STICKY_M, F_FMUL_DEC):
+  return [("mult", j.st)]
+ if f in (F_STICKY_C, F_FCHP_DEC):
+  return [("chip", j.st)]
+ if f == F_STENCIL:
+  return [("xmult", max(1, gs["jslots"] - len(gs["jokers"]) + 1))]
+ if f == F_CHIP_DISC:
+  return [("chip", d[2] * gs["ds"])]
+ if f == F_NJOK_M:
+  return [("mult", d[2] * len(gs["jokers"]))]
+ if f == F_BULL:
+  return [("chip", d[2] * gs["mn"])]
+ if f == F_BOOTS:
+  return [("mult", d[2] * (gs["mn"] // d[3]))]
+ if f == F_RCM:
+  return [("chip", d[2]), ("mult", d[3])]
+ if f == F_SMONEY:
+  return [("money", d[2])]
+ if f == F_DECK_C:
   # cuenta las cartas que QUEDAN en el mazo, no el total
-  gs["tot_chips"] += d[2] * len(gs["baraja"].cartas)
- elif f == F_FMUL_DEC:
-  gs["tot_mult"] += j.st
- elif f == F_XMUL_PER_EF:
+  return [("chip", d[2] * len(gs["baraja"].cartas))]
+ if f == F_XMUL_PER_EF:
   ct = 0
   for c in gs["baraja"].total:
    if c.ef == d[3]:
     ct += 1
-  gs["tot_mult"] *= (1 + d[2] * ct)
+  return [("xmult", 1 + d[2] * ct)]
+ return []
+
+
+def apply_joker_effect(j):
+ # Aplica lo que aporta el joker (joker_aporte) a tot_chips / tot_mult o
+ # al dinero.
+ d = JDEFS[j.id]
+ if d[1] == F_RAND_M:
+  gs["tot_mult"] += random.randint(0, d[2])
+  return
+ for tipo, v in joker_aporte(j):
+  if tipo == "chip":
+   gs["tot_chips"] += v
+  elif tipo == "mult":
+   gs["tot_mult"] += v
+  elif tipo == "xmult":
+   gs["tot_mult"] *= v
+  elif tipo == "money":
+   gs["mn"] += v
 
 
 def apply_card_ef(c, cx, cy):
@@ -1367,35 +1465,32 @@ def apply_card_ef(c, cx, cy):
  for jh in gs["jokers"]:
   f = JDEFS[jh.id][1]
   if f == F_MIDAS and c.va > 10:
-   c.ef = 7  # Midas Mask: la figura pasa a ser Gold
+   c.ef = EF_GOLD  # Midas Mask: la figura pasa a ser Gold
   elif f == F_VAMP and c.ef > 0:
    # Vampire se "come" el efecto y gana x0.1
    jh.xm += 0.1
    c.ef = 0
    spawn_particle(cx, cy - 6, round(jh.xm, 2), "xmult")
  ef = c.ef
- if ef == 1:
-  # Bonus
+ if ef == EF_BONUS:
   gs["tot_chips"] += 30
   spawn_particle(cx, cy - 6, 30, "chip")
- elif ef == 2:
-  # Mult
+ elif ef == EF_MULT:
   gs["tot_mult"] += 4
   spawn_particle(cx, cy - 6, 4, "mult")
- elif ef == 4:
-  # Glass: x2 y 1 entre 4 de romperse (se quita al acabar la mano)
+ elif ef == EF_GLASS:
+  # x2 y 1 entre 4 de romperse (se quita al acabar la mano)
   gs["tot_mult"] *= 2
   spawn_particle(cx, cy - 6, 2, "xmult")
   if random.randint(1, 4) == 1:
    c.bk = 1
- elif ef == 7:
-  # Gold: solo da dinero al puntuar si tienes Golden Ticket
-  for jh in gs["jokers"]:
-   if JDEFS[jh.id][1] == F_GTICK:
-    gs["mn"] += 4
-    spawn_particle(cx, cy - 12, 4, "money")
- elif ef == 8:
-  # Lucky: 1/5 de +20 mult y 1/15 de +$20
+ elif ef == EF_GOLD:
+  # solo da dinero al puntuar si tienes Golden Ticket ($4 cada uno)
+  for jh in jokers_de(F_GTICK):
+   gs["mn"] += 4
+   spawn_particle(cx, cy - 12, 4, "money")
+ elif ef == EF_LUCKY:
+  # 1/5 de +20 mult y 1/15 de +$20
   tr = False
   if random.randint(1, 5) == 1:
    gs["tot_mult"] += 20
@@ -1407,9 +1502,8 @@ def apply_card_ef(c, cx, cy):
    tr = True
   if tr:
    # Lucky Cat crece cada vez que una Lucky acierta
-   for jh in gs["jokers"]:
-    if JDEFS[jh.id][1] == F_LUCKY:
-     jh.xm += 0.25
+   for jh in jokers_de(F_LUCKY):
+    jh.xm += 0.25
 
 
 # =============================================================================
@@ -1423,30 +1517,30 @@ def card_center_xy(ci):
  c = gs["scoring_cards"][ci]
  b = gs["b"]
  if c not in b:
-  return (128, 53)
+  return (128, JUG_Y)
  idx = b.index(c)
  n = len(b)
  sep = (n * 16 - 17) / (n - 1) if n > 1 else 0
- return (int(80 + idx * sep) + 8, 53)
+ return (int(MANO_X0 + idx * sep) + 8, JUG_Y)
 
 
 def joker_center_xy(ji):
  # Centro del joker ji en la fila de jokers (un joker solo va centrado).
  n = len(gs["jokers"])
  if n == 1:
-  return (83 + (172 - 83 - 16) // 2 + 8, 20)
- sep = (172 - 83 - 16) / (n - 1)
- return (int(83 + ji * sep) + 8, 20)
+  return (JOK_X0 + (JOK_XF - JOK_X0 - 16) // 2 + 8, FILA_Y + 12)
+ sep = (JOK_XF - JOK_X0 - 16) / (n - 1)
+ return (int(JOK_X0 + ji * sep) + 8, FILA_Y + 12)
 
 
 def hand_card_center(hi):
  # Centro de la carta hi de la mano (las que no se juegan).
  cards = gs["hand"]
  if len(cards) == 0 or hi >= len(cards):
-  return (128, 140 - gs["up"])
- x = 80
- y = 140 - gs["up"]
- xf = 193
+  return (128, MANO_Y - gs["up"])
+ x = MANO_X0
+ y = MANO_Y - gs["up"]
+ xf = MANO_XF
  sep = 0 if len(cards) == 1 else (xf - x - 17) / (len(cards) - 1)
  xc = int(x + hi * sep)
  return (xc + 8, y + 10)
@@ -1466,57 +1560,20 @@ def spawn_particle(cx, cy, value, kind):
 
 
 def spawn_for_joker(ji):
- # Lanza sobre el joker ji la particula de lo que acaba de aportar. El
- # valor tiene que coincidir con lo que aplica apply_joker_effect.
+ # Lanza sobre el joker ji las particulas de lo que acaba de aportar
+ # (las mismas que aplico apply_joker_effect, ver joker_aporte). Si son
+ # varias (Scholar: fichas y mult) van una encima de otra.
  j = gs["jokers"][ji]
- d = JDEFS[j.id]
- f = d[1]
  cx, cy = joker_center_xy(ji)
- if f in (F_FMUL, F_HMUL, F_SMUL, F_RMUL, F_SZMUL, F_NODISC_M):
-  spawn_particle(cx, cy, d[2], "mult")
- elif f in (F_FCHP, F_HCHP, F_SCHP, F_RCHP):
-  spawn_particle(cx, cy, d[2], "chip")
- elif f in (F_XMUL, F_RXFIRST, F_HD_LAST_X, F_HXMUL):
-  spawn_particle(cx, cy, d[2], "xmult")
- elif f in (F_RAMEN, F_VAMP, F_LUCKY):
-  spawn_particle(cx, cy, round(j.xm, 2), "xmult")
- elif f == F_STENCIL:
-  spawn_particle(cx, cy, max(1, gs["jslots"] - len(gs["jokers"]) + 1), "xmult")
- elif f == F_CHIP_DISC:
-  spawn_particle(cx, cy, d[2] * gs["ds"], "chip")
- elif f == F_NJOK_M:
-  spawn_particle(cx, cy, d[2] * len(gs["jokers"]), "mult")
- elif f == F_BULL:
-  spawn_particle(cx, cy, d[2] * gs["mn"], "chip")
- elif f == F_STICKY_M:
-  spawn_particle(cx, cy, j.st, "mult")
- elif f == F_STICKY_C:
-  spawn_particle(cx, cy, j.st, "chip")
- elif f == F_RAND_M:
+ if JDEFS[j.id][1] == F_RAND_M:
   spawn_particle(cx, cy, "?", "mult")
- elif f == F_BOOTS:
-  spawn_particle(cx, cy, d[2] * (gs["mn"] // d[3]), "mult")
- elif f == F_RCM:
-  spawn_particle(cx, cy, d[2], "chip")
-  spawn_particle(cx, cy - 6, d[3], "mult")
- elif f == F_SXPROB:
-  spawn_particle(cx, cy, d[2], "xmult")
- elif f == F_SMONEY:
-  spawn_particle(cx, cy, d[2], "money")
- elif f == F_HS_MOD:
-  spawn_particle(cx, cy, d[2], "chip")
- elif f == F_FCHP_DEC:
-  spawn_particle(cx, cy, j.st, "chip")
- elif f == F_DECK_C:
-  spawn_particle(cx, cy, d[2] * len(gs["baraja"].cartas), "chip")
- elif f == F_FMUL_DEC:
-  spawn_particle(cx, cy, j.st, "mult")
- elif f == F_XMUL_PER_EF:
-  ct = 0
-  for c in gs["baraja"].total:
-   if c.ef == d[3]:
-    ct += 1
-  spawn_particle(cx, cy, round(1 + d[2] * ct, 2), "xmult")
+  return
+ i = 0
+ for tipo, v in joker_aporte(j):
+  if type(v) is float:
+   v = round(v, 2)
+  spawn_particle(cx, cy - 6 * i, v, tipo)
+  i += 1
 
 
 def update_and_draw_particles():
@@ -1600,7 +1657,7 @@ def build_event_queue(scoring):
  for hi, c in enumerate(gs["hand"]):
   if c in gs["b"]:
    continue
-  if c.ef == 5:
+  if c.ef == EF_STEEL:
    q.append([E_HELD, (-1, hi)])
   for ji, j in enumerate(gs["jokers"]):
    d = JDEFS[j.id]
@@ -1625,9 +1682,8 @@ def apply_event(e):
   ci = e[1]
   c = gs["scoring_cards"][ci]
   # Hiker: la carta gana fichas permanentes antes de puntuar
-  for jh in gs["jokers"]:
-   if JDEFS[jh.id][1] == F_HIKER:
-    c.bc += JDEFS[jh.id][2]
+  for jh in jokers_de(F_HIKER):
+   c.bc += JDEFS[jh.id][2]
   chips = chips_c(c)
   gs["tot_chips"] += chips
   cx, cy = card_center_xy(ci)
@@ -1652,7 +1708,7 @@ def apply_event(e):
   if hi < len(gs["hand"]):
    cx, cy = hand_card_center(hi)
   else:
-   cx, cy = (128, 53)
+   cx, cy = (128, JUG_Y)
   if ji < 0:
    # carta Steel
    gs["tot_mult"] *= 1.5
@@ -1762,18 +1818,18 @@ def finalize_score():
   if try_mr_bones():
    start_round_win()
   else:
-   gs["gm"] = 5
+   gs["gm"] = GM_GAMEOVER
  else:
   gs["baraja"].repartir()
-  gs["fase_puntos"] = 0
+  gs["fase_puntos"] = FP_ELEGIR
 
 
 # =============================================================================
 #  17. FIN DE RONDA, CASH OUT Y PASO ENTRE PANTALLAS
 # =============================================================================
 # Flujo de una ronda:
-#   ciegas (gm 4) --start_blind--> juego (gm 1) --ganar--> cash out (fase 2-3)
-#   --collect_cash_out / enter_shop--> tienda (gm 3) --shop_next_round--> ciegas
+#   GM_CIEGAS --start_blind--> GM_JUEGO --ganar--> cash out (FP_SUBIR, FP_COBRAR)
+#   --collect_cash_out / enter_shop--> GM_TIENDA --shop_next_round--> GM_CIEGAS
 
 def joker_round_money():
  # Dinero extra al final de ronda: jokers de fin de ronda + cartas Gold
@@ -1795,7 +1851,7 @@ def joker_round_money():
      c += 1
    m += d[2] * c
  for c in gs["hand"]:
-  if c.ef == 7:
+  if c.ef == EF_GOLD:
    m += 3
  return m
 
@@ -1804,17 +1860,14 @@ def cash_out_money():
  # Desglose del cobro: (recompensa, manos, interes, descartes, extra).
  dt = gs["baraja"].dt
  reward = BLIND_REWARD[gs["blind"]]
- if dt == 2:
-  # baraja 2: sin interes, $2 por mano y $1 por descarte que quede
+ if dt == BAR_VERDE:
+  # sin interes, $2 por mano y $1 por descarte que quede
   hands = gs["hd"] * 2
   interest = 0
   disc = gs["ds"]
  else:
   hands = gs["hd"]
-  itc = 0
-  for j in gs["jokers"]:
-   if JDEFS[j.id][1] == F_EOR_INT:
-    itc += 1
+  itc = len(jokers_de(F_EOR_INT))  # To the Moon: cada uno suma otro interes
   interest = min(INTEREST_CAP, gs["mn"] // 5) * (1 + itc)
   disc = 0
  extra = joker_round_money()
@@ -1865,7 +1918,7 @@ def start_round_win():
  gs["co_req"] = blind_req()
  gs["voff"] = 0
  gs["co_wait"] = CASH_WAIT
- gs["fase_puntos"] = 2
+ gs["fase_puntos"] = FP_SUBIR
 
 
 def reset_round():
@@ -1900,7 +1953,7 @@ def collect_cash_out():
 
 def enter_shop():
  gs["voff"] = 0
- gs["fase_puntos"] = 0
+ gs["fase_puntos"] = FP_ELEGIR
  gs["pack"] = None
  gs["reroll"] = SHOP_BASE_REROLL
  gs["free_rr"] = 1 if has_free_reroll() else 0
@@ -1909,7 +1962,7 @@ def enter_shop():
  gs["ds"] = base_discards()
  reset_round()
  roll_shop()
- gs["gm"] = 3
+ gs["gm"] = GM_TIENDA
 
 
 def shop_next_round():
@@ -1919,16 +1972,16 @@ def shop_next_round():
   gs["blind"] = 0
   gs["ant"] += 1
  gs["rd"] += 1
- gs["gm"] = 4
+ gs["gm"] = GM_CIEGAS
 
 
 def start_blind():
  # Boton "play" de la pantalla de ciegas: empezar la ronda.
  gs["voff"] = 0
- gs["fase_puntos"] = 0
+ gs["fase_puntos"] = FP_ELEGIR
  reset_round()
  gs["baraja"].repartir()
- gs["gm"] = 1
+ gs["gm"] = GM_JUEGO
 
 
 # =============================================================================
@@ -2074,7 +2127,7 @@ def buy_planeta(slot):
  e = gs["shop_j"][slot]
  if e[2]:
   return
- if len(gs["consu"]) >= 2:
+ if len(gs["consu"]) >= MAX_CONSU:
   return
  if gs["mn"] < e[1]:
   return
@@ -2120,11 +2173,13 @@ def open_pack(slot):
    used2.append(pid)
    ch.append(Planeta(pid))
  gs["pack"] = {"k": k, "choices": ch, "picks": pkd[1]}
+ gs["aviso_t"] = 0
 
 
 def pack_pick(idx):
  # Elegir la opcion idx del sobre abierto. Si no tienes hueco para ella,
- # el sobre se cierra.
+ # no se coge: sale un aviso y el sobre sigue abierto, para que puedas
+ # vender (o usar) algo y volver a elegir.
  p = gs["pack"]
  if p is None:
   return
@@ -2134,15 +2189,17 @@ def pack_pick(idx):
  if hasattr(it, "xm"):
   # es un Joker
   if len(gs["jokers"]) >= gs["jslots"]:
-   gs["pack"] = None
+   gs["aviso"] = "SELL A JOKER FIRST"
+   gs["aviso_t"] = AVISO_DUR
    return
   gs["jokers"].append(it)
   p["choices"].pop(idx)
   recalc_hs()
  else:
   # es un Planeta
-  if len(gs["consu"]) >= 2:
-   gs["pack"] = None
+  if len(gs["consu"]) >= MAX_CONSU:
+   gs["aviso"] = "USE OR SELL FIRST"
+   gs["aviso_t"] = AVISO_DUR
    return
   gs["consu"].append(it)
   p["choices"].pop(idx)
@@ -2182,7 +2239,7 @@ def sell_joker(idx):
  j = gs["jokers"][idx]
  gs["mn"] += joker_sell_value(j)
  gs["jokers"].pop(idx)
- gs["sel_joker"] = -1
+ sel_joker_pon(-1)
  recalc_hs()
 
 
@@ -2198,25 +2255,25 @@ def sell_consu(idx):
 def joker_x_pos(ji, n):
  # X del joker ji si hay n en la fila (misma formula que print_jokers).
  if n == 1:
-  return 83 + (172 - 83 - 16) // 2
- sep = (172 - 83 - 16) / (n - 1)
+  return JOK_X0 + (JOK_XF - JOK_X0 - 16) // 2
+ sep = (JOK_XF - JOK_X0 - 16) / (n - 1)
  dec = 0
- x = 83
+ x = JOK_X0
  for i in range(n):
   if i == ji:
    return int(x + i * int(sep) + int(dec))
   dec += sep - int(sep)
- return 83
+ return JOK_X0
 
 
 def draw_sell_use_buttons(raton):
  # Botones pequenos encima del objeto seleccionado:
  #   joker seleccionado      -> "$N" para venderlo
  #   consumible seleccionado -> "$1" para venderlo y "use" para usarlo
- # FIX: solo en la fase 0. Antes se podia vender un joker MIENTRAS se
+ # FIX: solo eligiendo cartas. Antes se podia vender un joker MIENTRAS se
  # puntuaba la mano: la cola de eventos seguia apuntando a su indice y el
  # juego petaba (IndexError en apply_event).
- if gs["fase_puntos"] != 0:
+ if gs["fase_puntos"] != FP_ELEGIR:
   return
  sj = gs["sel_joker"]
  sc = gs["sel_consu"]
@@ -2225,19 +2282,13 @@ def draw_sell_use_buttons(raton):
   xj = joker_x_pos(sj, n)
   j = gs["jokers"][sj]
   v = joker_sell_value(j)
-  bt = Boton("$" + str(v), 4, xj + 18, 14, 2, 1, True)
-  bt.pintar()
-  if bt.clicado() and not gs["Clk0"]:
+  if boton_clic("$" + str(v), 4, xj + 18, 14, 2, 1):
    sell_joker(sj)
  if 0 <= sc < len(gs["consu"]):
-  xp = 189 + sc * 18
-  bs = Boton("$1", 4, xp + 18, 10, 2, 1, True)
-  bs.pintar()
-  if bs.clicado() and not gs["Clk0"]:
+  xp = CONSU_X0 + sc * CONSU_DX
+  if boton_clic("$1", 4, xp + 18, 10, 2, 1):
    sell_consu(sc)
-  bu = Boton("use", 0, xp + 18, 20, 2, 1, True)
-  bu.pintar()
-  if bu.clicado() and not gs["Clk0"]:
+  if boton_clic("use", 0, xp + 18, 20, 2, 1):
    use_planeta(sc)
    gs["sel_consu"] = -1
 
@@ -2245,9 +2296,11 @@ def draw_sell_use_buttons(raton):
 # =============================================================================
 #  20. TEXTOS DE JOKER (tooltip y caja de respaldo)
 # =============================================================================
-# En vez de un "switch" gigante, cada familia tiene una plantilla.
+# El tooltip usa la descripcion de cada joker (JDESC, mas abajo). Para un
+# joker que aun no la tenga, y para la caja de respaldo, cada familia tiene
+# una plantilla corta en vez de un "switch" gigante.
 #
-# JVT (tooltip): familia -> (texto1, modo1, texto2, modo2, texto3)
+# JVT (texto corto de respaldo): familia -> (texto1, modo1, texto2, modo2, texto3)
 #   resultado = texto1 + valor(modo1) + texto2 + valor(modo2) + texto3
 #   modos: 0 nada, 1 d[2], 2 d[3], 3 j.st, 4 j.xm redondeado
 JVT = {
@@ -2331,6 +2384,112 @@ def joker_value_text(j):
  if p3:
   r += p3
  return r
+
+
+# JDESC: descripcion de cada joker para su tooltip, por id (igual que JDEFS).
+# Cada entrada es una tupla de lineas (como mucho 24 caracteres visibles).
+#   {1} {2} {3}  se cambian por d[2] d[3] d[4] de JDEFS: si se cambia un valor
+#                alli, la descripcion lo sigue.
+#   ~c ~m ~x ~$  color de fichas / mult / xmult / dinero,  ~o  palabra clave,
+#   ~n           vuelve al color normal (ver TT_COL y draw_text_marcas).
+# Texto en ingles, como Balatro. Los #M describen lo que hacen AQUI, no en
+# Balatro: el tooltip nunca miente. Los jokers cuyo valor cambia durante la
+# partida anaden solos la linea "(CURRENTLY ...)", ver joker_actual.
+JDESC = {
+ 0: ("~m+{1} MULT",),                                                    # Joker
+ 1: ("~m+{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oPAIR"),               # Jolly Joker
+ 2: ("~m+{1} MULT~n IF PLAYED HAND", "CONTAINS A", "~oTHREE OF A KIND"),  # Zany Joker
+ 3: ("~m+{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oTWO PAIR"),           # Mad Joker
+ 4: ("~m+{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oSTRAIGHT"),           # Crazy Joker
+ 5: ("~m+{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oFLUSH"),              # Droll Joker
+ 6: ("~c+{1} CHIPS~n IF PLAYED HAND", "CONTAINS A ~oPAIR"),              # Sly Joker
+ 7: ("~c+{1} CHIPS~n IF PLAYED HAND", "CONTAINS A", "~oTHREE OF A KIND"),  # Wily Joker
+ 8: ("~c+{1} CHIPS~n IF PLAYED HAND", "CONTAINS A ~oTWO PAIR"),          # Clever Joker
+ 9: ("~c+{1} CHIPS~n IF PLAYED HAND", "CONTAINS A ~oSTRAIGHT"),          # Devious Joker
+ 10: ("~c+{1} CHIPS~n IF PLAYED HAND", "CONTAINS A ~oFLUSH"),            # Crafty Joker
+ 11: ("PLAYED CARDS WITH", "~oDIAMOND~n SUIT GIVE", "~m+{1} MULT~n WHEN SCORED"),   # Greedy Joker
+ 12: ("PLAYED CARDS WITH", "~oHEART~n SUIT GIVE", "~m+{1} MULT~n WHEN SCORED"),     # Lusty Joker
+ 13: ("PLAYED CARDS WITH", "~oSPADE~n SUIT GIVE", "~m+{1} MULT~n WHEN SCORED"),     # Wrathful Joker
+ 14: ("PLAYED CARDS WITH", "~oCLUB~n SUIT GIVE", "~m+{1} MULT~n WHEN SCORED"),      # Gluttonous Joker
+ 15: ("PLAYED ~oACES~n GIVE", "~c+{1} CHIPS~n AND ~m+{2} MULT", "WHEN SCORED"),     # Scholar
+ 16: ("PLAYED ~oFACE~n CARDS GIVE", "~m+{1} MULT~n WHEN SCORED"),                 # Smiley Face
+ 17: ("PLAYED CARDS WITH ~oEVEN", "~oRANK~n GIVE ~m+{1} MULT", "WHEN SCORED", "(10, 8, 6, 4, 2)"),  # Even Steven
+ 18: ("PLAYED CARDS WITH ~oODD", "~oRANK~n GIVE ~c+{1} CHIPS", "WHEN SCORED", "(A, 9, 7, 5, 3)"),  # Odd Todd
+ 19: ("~oRETRIGGER~n ALL PLAYED", "~oFACE~n CARDS"),                    # Sock and Buskin
+ 20: ("~m+{1} MULT", "1 IN 6 CHANCE THIS CARD", "IS DESTROYED AT THE", "END OF THE ROUND"),  # Gros Michel
+ 21: ("~m+{1} MULT~n IF PLAYED HAND", "HAS {2} OR FEWER CARDS"),          # Half Joker
+ 22: ("FIRST PLAYED ~oFACE~n CARD", "GIVES ~xX{1} MULT~n WHEN", "SCORED"),  # Photograph
+ 23: ("~xX1 MULT~n FOR EACH EMPTY", "~oJOKER~n SLOT", "(STENCIL COUNTS", "AS EMPTY)"),  # Joker Stencil
+ 24: ("EACH PLAYED ~oA, 2, 3, 5", "~nOR ~o8~n GIVES ~m+{1} MULT", "WHEN SCORED"),  # Fibonacci
+ 25: ("~oRETRIGGER~n EACH PLAYED", "~o2, 3, 4~n OR ~o5"),                 # Hack
+ 26: ("PLAYED CARDS WITH", "~oSPADE~n SUIT GIVE", "~c+{1} CHIPS~n WHEN SCORED"),   # Arrowhead
+ 27: ("1 IN {2} CHANCE FOR PLAYED", "CARDS WITH ~oHEART~n SUIT", "TO GIVE ~xX{1} MULT", "WHEN SCORED"),  # Bloodstone
+ 28: ("~c+{1} CHIPS~n FOR EACH", "REMAINING ~oDISCARD"),                 # Banner
+ 29: ("PLAYED ~oFACE~n CARDS GIVE", "~c+{1} CHIPS~n WHEN SCORED"),        # Scary Face
+ 30: ("~xX{1} MULT", "1 IN 1000 CHANCE THIS", "CARD IS DESTROYED AT", "THE END OF THE ROUND"),  # Cavendish
+ 31: ("GAINS ~c+{1} CHIPS~n WHEN", "EACH PLAYED ~o2~n IS SCORED"),        # Wee Joker
+ 32: ("PLAYED CARDS WITH", "~oCLUB~n SUIT GIVE", "~m+{1} MULT~n WHEN SCORED"),      # Onyx Agate
+ 33: ("~xX{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oPAIR"),               # The Duo
+ 34: ("~xX{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oFLUSH"),              # The Tribe
+ 35: ("~xX{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oSTRAIGHT"),           # The Order
+ 36: ("~xX{1} MULT~n IF PLAYED HAND", "CONTAINS A", "~oTHREE OF A KIND"),  # The Trio
+ 37: ("~xX{1} MULT~n IF PLAYED HAND", "CONTAINS A", "~oFOUR OF A KIND"),  # The Family
+ 38: ("PLAYED CARDS WITH", "~oDIAMOND~n SUIT EARN ~$${1}", "WHEN SCORED"),  # Rough Gem
+ 39: ("~m+0~n TO ~m+{1} MULT", "(RANDOM)"),                              # Misprint
+ 40: ("~oRETRIGGER~n ALL PLAYED", "CARDS IN ~oFINAL HAND", "OF THE ROUND"),  # Dusk
+ 41: ("~m+{1} MULT~n FOR EVERY ~$${2}", "YOU HAVE"),                     # Bootstraps
+ 42: ("~c+{1} CHIPS", "{2} HAND SIZE"),                                  # Stuntman
+ 43: ("~c+{1} CHIPS", "~c-{2} CHIPS~n FOR EVERY", "HAND PLAYED"),         # Ice Cream
+ 44: ("~m+{1} MULT~n FOR EACH", "~oJOKER~n CARD"),                       # Abstract Joker
+ 45: ("~m+{1} MULT~n WHEN ~o0", "~oDISCARDS~n REMAINING"),                # Mystic Summit
+ 46: ("~xX{1} MULT~n ON ~oFINAL HAND", "OF THE ROUND"),                   # Acrobat
+ 47: ("~c+{1} CHIPS~n FOR EACH ~$$1", "YOU HAVE"),                       # Bull
+ 48: ("GAINS ~m+{1} MULT~n PER", "CONSECUTIVE HAND PLAYED", "WITHOUT A SCORING", "~oFACE~n CARD"),  # Ride the Bus
+ 49: ("~m+{1} MULT~n PER HAND PLAYED", "~m-1 MULT~n PER DISCARD"),       # Green Joker
+ 50: ("EVERY PLAYED CARD", "PERMANENTLY GAINS", "~c+{1} CHIPS~n WHEN SCORED"),  # Hiker
+ 51: ("~xX{1} MULT~n, LOSES ~xX0.01", "PER CARD DISCARDED"),              # Ramen
+ 52: ("GAINS ~c+{1} CHIPS~n IF", "PLAYED HAND CONTAINS", "A ~oSTRAIGHT"),  # Runner
+ 53: ("GAINS ~c+{1} CHIPS~n IF", "PLAYED HAND HAS", "EXACTLY ~o{3}~n CARDS"),  # Square Joker
+ 54: ("GAINS ~m+{1} MULT~n IF", "PLAYED HAND CONTAINS", "A ~oTWO PAIR"),  # Spare Trousers
+ 55: ("EACH ~oQUEEN~n HELD IN HAND", "GIVES ~m+{1} MULT"),               # Shoot the Moon
+ 56: ("EACH ~oKING~n HELD IN HAND", "GIVES ~xX{1} MULT"),                # Baron
+ 57: ("EACH PLAYED ~o10~n OR ~o4", "~nGIVES ~c+{1} CHIPS~n AND", "~m+{2} MULT~n WHEN SCORED"),  # Walkie Talkie
+ 58: ("~c+{1} CHIPS~n FOR EACH", "REMAINING CARD IN ~oDECK"),            # Blue Joker
+ 59: ("~o+{1} HAND SIZE",),                                              # Juggler
+ 60: ("~m+{1} MULT", "~m-{2} MULT~n PER ROUND", "PLAYED"),                # Popcorn
+ 61: ("EARN ~$${1}~n AT THE END", "OF THE ROUND"),                       # Golden Joker
+ 62: ("EARN ~$${1}~n PER DISCARD", "IF NO DISCARDS ARE USED", "BY THE END OF THE ROUND"),  # Delayed Gratification
+ 63: ("EARN AN EXTRA ~$$1~n OF", "INTEREST FOR EVERY ~$$5", "~nYOU HAVE AT THE END", "OF THE ROUND (MAX ~$$5~n)"),  # To the Moon
+ 64: ("EVERY ~oPLAYED~n CARD", "COUNTS IN SCORING"),                     # Splash
+ 65: ("~oRETRIGGER~n THE FIRST", "SCORING CARD {1} MORE", "TIMES"),        # Hanging Chad
+ 66: ("EARN ~$${1}~n FOR EACH ~o{2}~n IN", "YOUR FULL DECK AT THE", "END OF THE ROUND"),  # Cloud 9
+ 67: ("PREVENTS DEATH IF YOU", "SCORED AT LEAST ~o1/4~n OF", "THE REQUIRED CHIPS", "(SELF DESTRUCTS)"),  # Mr. Bones
+ 68: ("~o1 FREE REROLL~n IN", "EACH SHOP"),                              # Chaos the Clown
+ 69: ("~m+{1} MULT",),                                                   # Burglar #M (la condicion "carta alta" siempre se cumple)
+ 70: ("PLAYED ~oACES~n AND ~oFACE", "~nCARDS GIVE ~m+{1} MULT", "WHEN SCORED"),  # Pareidolia #M
+ 71: ("~c+{1} CHIPS",),                                                  # Stone Joker #M
+ 72: ("GIVES ~xX{1} MULT~n FOR EACH", "~oSTEEL~n CARD IN YOUR", "FULL DECK"),  # Steel Joker
+ 73: ("~c+{1} CHIPS",),                                                  # Showman #M
+ 74: ("~m+{1} MULT",),                                                   # Throwback #M
+ 75: ("~m+{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oFLUSH HOUSE"),        # Hologram #M
+ 76: ("GAINS ~xX0.1 MULT~n PER", "SCORING ~oENHANCED~n CARD", "PLAYED, REMOVES ITS", "ENHANCEMENT"),  # Vampire
+ 77: ("GAINS ~c+{1} CHIPS~n PER", "HAND PLAYED"),                         # Castle #M
+ 78: ("GAINS ~$${1}~n OF SELL VALUE", "AT THE END OF THE ROUND"),         # Egg
+ 79: ("EARN ~$${1}~n AT THE END", "OF THE ROUND"),                       # Faceless Joker #M
+ 80: ("~c+{1} CHIPS~n IF PLAYED HAND", "CONTAINS A", "~oSTRAIGHT FLUSH"),  # Cartomancer #M
+ 81: ("~c+{1} CHIPS~n IF PLAYED HAND", "CONTAINS A ~oFLUSH FIVE"),        # Marble Joker #M
+ 82: ("~m+{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oTWO PAIR"),           # Drunkard #M
+ 83: ("EACH ~oFACE~n CARD HELD IN", "HAND GIVES ~m+{1} MULT"),            # Reserved Parking #M
+ 84: ("~oRETRIGGER~n ALL", "PLAYED CARDS"),                              # Mime #M
+ 85: ("~xX{1} MULT~n IF PLAYED HAND", "CONTAINS", "~oFIVE OF A KIND"),     # Triboulet #M
+ 86: ("~xX{1} MULT~n IF PLAYED HAND", "CONTAINS A ~oFLUSH HOUSE"),        # Yorick #M
+ 87: ("~m+{1} MULT",),                                                   # Constellation #M
+ 88: ("~m+{1} MULT~n FOR EACH", "~oJOKER~n CARD"),                       # Madness #M
+ 89: ("~m+{1} MULT~n FOR EVERY ~$${2}", "YOU HAVE"),                     # Vagabond #M
+ 90: ("ALL PLAYED ~oFACE~n CARDS", "BECOME ~oGOLD~n CARDS", "WHEN SCORED"),  # Midas Mask
+ 91: ("PLAYED ~oGOLD~n CARDS EARN", "~$$4~n WHEN SCORED"),                # Golden Ticket
+ 92: ("GAINS ~xX0.25 MULT~n EACH", "TIME A ~oLUCKY~n CARD", "SUCCESSFULLY TRIGGERS"),  # Lucky Cat
+}
 
 
 # JBOX (caja de respaldo de los jokers sin sprite):
@@ -2458,7 +2617,7 @@ def print_cards(x, y, xf, cards, permite_seleccion):
  hand = gs["hand"]
  if len(cards) == 0:
   return
- tt = gs["gm"] == 2  # en el visor se muestran tooltips de carta
+ tt = gs["gm"] == GM_VISOR  # en el visor se muestran tooltips de carta
  mx = mouse()[0]
  my = mouse()[1]
  mb = mouse()[2]
@@ -2490,8 +2649,8 @@ def print_cards(x, y, xf, cards, permite_seleccion):
      hand.pop(oi)
      hand.insert(ni, dc)
   else:
-   # clic limpio: seleccionar (como mucho 5) o deseleccionar
-   if dc.sel or len([cc for cc in hand if cc.sel]) < 5:
+   # clic limpio: seleccionar (como mucho MAX_SEL) o deseleccionar
+   if dc.sel or len(cartas_seleccionadas()) < MAX_SEL:
     dc.sel = not dc.sel
   gs["drag_card"] = None
   gs["drag_active"] = False
@@ -2510,8 +2669,8 @@ def print_cards(x, y, xf, cards, permite_seleccion):
   # las cartas jugadas no se pintan en la mano (se pintan arriba)
   if i in b and cards is hand:
    continue
-  hv = (permite_seleccion or tt) and mx >= xc and mx < xc + 16 and my >= yc_base and my < yc_base + 23
-  if draggable and hv and mb and not gs["Clk0"]:
+  hv = (permite_seleccion or tt) and raton_en(xc, yc_base, 16, 23)
+  if draggable and hv and clic_nuevo():
    # clic nuevo sobre esta carta: candidata a clic o arrastre
    gs["drag_card"] = i
    gs["drag_active"] = False
@@ -2523,9 +2682,10 @@ def print_cards(x, y, xf, cards, permite_seleccion):
   if tt and hv:
    gs["tt_target"] = ("card", i, xc, yc_base)
 
- # La carta arrastrada, siguiendo al raton y por encima de las demas
+ # La carta arrastrada sigue al raton. Se pinta al final del fotograma
+ # (TIC) para quedar por encima de todo.
  if draggable and gs["drag_active"] and gs["drag_card"] is not None:
-  draw_card_at(gs["drag_card"], mx - 8, my - 12)
+  gs["arrastre"] = ("carta", gs["drag_card"], mx - 8, my - 12)
 
 
 def dibujar_joker(x, y, j, sc=1):
@@ -2579,14 +2739,14 @@ def draw_joker_box(xj, yj_base, j, sc=1):
 
 
 def print_jokers(oy=0):
- # Dibuja la fila de jokers (x de 83 a 172). 'oy' desplaza la fila en
+ # Dibuja la fila de jokers (x de JOK_X0 a JOK_XF). 'oy' desplaza la fila en
  # vertical: lo usa el scroll del cash out para pintar dos copias.
  # En juego y tienda con la fase 0, gestiona clic (seleccionar para vender)
  # y arrastre (reordenar), igual que print_cards.
  reset_col()
- bx = 83
- by = 8 + oy
- xf = 172
+ bx = JOK_X0
+ by = FILA_Y + oy
+ xf = JOK_XF
  ai = gs["active_joker_idx"]
  n = len(gs["jokers"])
  if n == 0:
@@ -2597,22 +2757,22 @@ def print_jokers(oy=0):
   return
  if n == 1:
   sep = 0
-  bx = 83 + (xf - 83 - 16) // 2  # un joker solo va centrado
+  bx = JOK_X0 + (xf - JOK_X0 - 16) // 2  # un joker solo va centrado
  else:
-  sep = (xf - 83 - 16) / (n - 1)
+  sep = (xf - JOK_X0 - 16) / (n - 1)
  mx = mouse()[0]
  my = mouse()[1]
  mb = mouse()[2]
- # FIX: tambien en la pantalla de ciegas (gm 4). Ahi ya se pintaba el boton
+ # FIX: tambien en la pantalla de ciegas. Ahi ya se pintaba el boton
  # de vender, pero no habia forma de seleccionar un joker.
- draggable = (gs["gm"] in (1, 3, 4)) and gs["fase_puntos"] == 0 and oy == 0
+ draggable = (gs["gm"] in (GM_JUEGO, GM_TIENDA, GM_CIEGAS)) and gs["fase_puntos"] == FP_ELEGIR and oy == 0
 
  # ob = el raton esta encima del boton de vender: ese clic no es para el joker
  ob = False
  ssj = gs["sel_joker"]
  if 0 <= ssj < n:
   obx = joker_x_pos(ssj, n) + 18
-  if mx >= obx and mx < obx + 16 and 14 <= my < 22:
+  if raton_en(obx, 14, 16, 8):
    ob = True
 
  # Pulsado y se ha movido mas de 3 px: pasa a ser arrastre
@@ -2639,12 +2799,13 @@ def print_jokers(oy=0):
     if ni != oi:
      gs["jokers"].pop(oi)
      gs["jokers"].insert(ni, dj)
+     sel_joker_sync()  # la seleccion se va con su joker
    else:
     # clic limpio: solo puede haber un objeto seleccionado
     if gs["sel_joker"] == oi:
-     gs["sel_joker"] = -1
+     sel_joker_pon(-1)
     else:
-     gs["sel_joker"] = oi
+     sel_joker_pon(oi)
      gs["sel_consu"] = -1
   gs["drag_joker"] = None
   gs["drag_active"] = False
@@ -2658,14 +2819,14 @@ def print_jokers(oy=0):
   xj = int(bx + con * int(sep) + int(dec))
   # flotacion - 4 px si esta actuando - 5 px si esta seleccionado
   yj_base = int(by + onda_y(j.an) * 1.2) - (4 if ai == con else 0) - (5 if gs["sel_joker"] == con else 0)
-  hv = mx >= xj and mx < xj + 16 and my >= yj_base and my < yj_base + 24
+  hv = raton_en(xj, yj_base, 16, 24)
   # el tooltip sale tras 15 fotogramas con el raton encima
   if hv and not gs["drag_active"]:
    if j.ht < 30:
     j.ht += 1
   else:
    j.ht = 0
-  if draggable and hv and mb and not gs["Clk0"] and gs["drag_joker"] is None and not ob:
+  if draggable and hv and clic_nuevo() and gs["drag_joker"] is None and not ob:
    gs["drag_joker"] = j
    gs["drag_active"] = False
    gs["drag_px"] = mx
@@ -2691,18 +2852,15 @@ def print_jokers(oy=0):
       draw_text("+" + str(d[2] * held), xj + 2, yj_base + 14, 3)
      else:
       draw_text("x" + str(d[2]), xj + 2, yj_base + 14, 3)
-  if hv and j.ht >= 15 and gs["fase_puntos"] < 2 and not gs["drag_active"]:
+  if hv and j.ht >= 15 and gs["fase_puntos"] < FP_SUBIR and not gs["drag_active"]:
    tt_target = (j, xj, yj_base)
  if tt_target:
   gs["tt_target"] = ("joker", tt_target[0], tt_target[1], tt_target[2])
 
- # El joker arrastrado, siguiendo al raton
+ # El joker arrastrado sigue al raton. Se pinta al final del fotograma
+ # (TIC) para quedar por encima de textos, ciegas, tienda y sobres.
  if draggable and gs["drag_active"] and gs["drag_joker"] is not None:
-  dj = gs["drag_joker"]
-  dx = mx - 8
-  dy = my - 12
-  if not dibujar_joker(dx, dy, dj):
-   draw_joker_box(dx, dy, dj)
+  gs["arrastre"] = ("joker", gs["drag_joker"], mx - 8, my - 12)
 
 
 def dibujar_planeta(x, y, p, sc=1):
@@ -2714,35 +2872,32 @@ def dibujar_planeta(x, y, p, sc=1):
 
 
 def print_consumibles(oy=0):
- # Fila de consumibles (2 huecos, desde x = 189, cada 18 px). Clic =
+ # Fila de consumibles (MAX_CONSU huecos desde x = CONSU_X0). Clic =
  # seleccionar para vender o usar. 'oy' como en print_jokers.
  reset_col()
  n = len(gs["consu"])
  if n == 0:
   return
- mx = mouse()[0]
- my = mouse()[1]
- mb = mouse()[2]
- clickable = (gs["gm"] in (1, 3, 4)) and gs["fase_puntos"] == 0 and oy == 0
+ clickable = (gs["gm"] in (GM_JUEGO, GM_TIENDA, GM_CIEGAS)) and gs["fase_puntos"] == FP_ELEGIR and oy == 0
  # ob = el raton esta encima de los botones $1 / use
  ob = False
  ssc = gs["sel_consu"]
  if 0 <= ssc < n:
-  bx = 189 + ssc * 18 + 18
-  if mx >= bx and mx < bx + 16 and ((10 <= my < 18) or (20 <= my < 28)):
+  bx = CONSU_X0 + ssc * CONSU_DX + 18
+  if raton_en(bx, 10, 16, 8) or raton_en(bx, 20, 16, 8):
    ob = True
  clicked = -1
  for i in range(n):
   p = gs["consu"][i]
-  xp = 189 + i * 18
-  yp = int(8 + oy + onda_y(p.an) * 1.2) - (5 if gs["sel_consu"] == i else 0)
+  xp = CONSU_X0 + i * CONSU_DX
+  yp = int(FILA_Y + oy + onda_y(p.an) * 1.2) - (5 if gs["sel_consu"] == i else 0)
   dibujar_planeta(xp, yp, p)
-  hv = mx >= xp and mx < xp + 16 and my >= yp and my < yp + 22
+  hv = raton_en(xp, yp, 16, 22)
   if hv:
    if p.ht < 30:
     p.ht += 1
    gs["tt_target"] = ("planeta", p, xp, yp)
-   if clickable and mb and not gs["Clk0"] and not ob:
+   if clickable and clic_nuevo() and not ob:
     clicked = i
   else:
    p.ht = 0
@@ -2751,21 +2906,111 @@ def print_consumibles(oy=0):
    gs["sel_consu"] = -1
   else:
    gs["sel_consu"] = clicked
-   gs["sel_joker"] = -1
+   sel_joker_pon(-1)
 
 
 def check_mazo_click(raton):
  # Clic en el lomo del mazo (abajo a la derecha): abrir el visor.
- if raton[0] > 216 and raton[0] < 232 and raton[1] > 104 and raton[1] < 128 and raton[2] and not gs["Clk0"]:
+ if raton[0] > MAZO_X and raton[0] < MAZO_X + 16 and raton[1] > MAZO_Y and raton[1] < MAZO_Y + 24 and clic_nuevo():
   gs["visor_from"] = gs["gm"]
-  gs["gm"] = 2
+  gs["gm"] = GM_VISOR
 
 
 # =============================================================================
 #  22. TOOLTIPS
 # =============================================================================
 # Se pintan al final del fotograma (ver TIC()) para quedar encima de todo.
-# Formato comun: caja exterior con el nombre y caja interior con las lineas.
+# Formato comun (dibujar_tooltip): caja exterior con el nombre y caja
+# interior con las lineas. Las lineas admiten marcas de color: "~m+4 MULT~n"
+# pinta "+4 MULT" en el color del mult y vuelve al normal.
+
+# Color de cada marca: ~c fichas, ~m mult, ~x xmult, ~$ dinero, ~o palabra
+# clave (palos, rangos, mejoras...). ~n vuelve al color de la linea.
+# Elegidos para leerse sobre el gris de la caja interior (paleta 5).
+TT_COL = {"c": 7, "m": 3, "x": 3, "$": 10, "o": 8}
+
+# Rareza en el tooltip de joker (por JRAR): texto y color, como en Balatro
+RAREZA_TXT = (("COMMON", 7), ("UNCOMMON", 0), ("RARE", 3))
+TT_TXT = 11  # color normal del texto sobre la caja gris
+
+
+def texto_largo(txt):
+ # Caracteres que se ven de un texto con marcas (cada "~X" no ocupa).
+ n = 0
+ i = 0
+ while i < len(txt):
+  if txt[i] == "~":
+   i += 2
+  else:
+   n += 1
+   i += 1
+ return n
+
+
+def draw_text_marcas(txt, x, y, col):
+ # Como draw_text, pero entendiendo las marcas ~X (ver TT_COL).
+ c = col
+ seg = ""
+ i = 0
+ while i < len(txt):
+  if txt[i] == "~":
+   if seg != "":
+    draw_text(seg, x, y, c)
+    x += len(seg) * 4
+    seg = ""
+   k = txt[i + 1]
+   if k == "n":
+    c = col
+   else:
+    c = TT_COL[k]
+   i += 2
+  else:
+   seg += txt[i]
+   i += 1
+ if seg != "":
+  draw_text(seg, x, y, c)
+
+
+def dibujar_tooltip(titulo, lineas, xc, yc, centrar):
+ # Tooltip bajo el objeto de 16 px de ancho en (xc, yc). lineas es una
+ # lista de (texto, color). Si no cabe debajo va encima, y nunca se sale
+ # de la pantalla. Caja exterior oscura con el nombre (paleta 7) y caja
+ # interior gris con las lineas (paleta 5), igual para cartas, jokers y
+ # planetas. La exterior lleva 1 px de mas de alto para que la interior no
+ # toque su borde de abajo.
+ ml = len(titulo)
+ for ln in lineas:
+  if texto_largo(ln[0]) > ml:
+   ml = texto_largo(ln[0])
+ # ancho en tiles. Las lineas centradas dejan 3 px de margen a cada lado
+ # dentro de la caja interior; las de carta conservan su ancho de siempre.
+ if centrar:
+  ws = (ml * 4 + 12) // 8 + 1
+ else:
+  ws = (ml * 4 + 6) // 8 + 1
+ hb = len(lineas)
+ tx = xc + 8 - ws * 4
+ ty = yc + 27
+ th = (2 + hb) * 8 + 1
+ if tx < 0:
+  tx = 0
+ if tx + ws * 8 > SCREEN_W:
+  tx = SCREEN_W - ws * 8
+ if ty + th > SCREEN_H:
+  ty = yc - th - 2
+ if ty < 0:
+  ty = 0
+ PrintBox(7, tx, ty, ws, 2 + hb, 1)
+ draw_text(titulo, tx + (ws * 8 - len(titulo) * 4) // 2 + 3, ty + 2, 11)
+ PrintBox(5, tx + 4, ty + 7, ws - 1, hb + 1)
+ for k in range(hb):
+  t, c = lineas[k]
+  if centrar:
+   x = tx + 4 + ((ws - 1) * 8 - texto_largo(t) * 4) // 2 + 1
+  else:
+   x = tx + 9
+  draw_text_marcas(t, x, ty + 11 + k * 9, c)
+
 
 def tt_card(c, xc, yc):
  # Tooltip de una carta (visor): nombre, fichas, efecto, sello y edicion.
@@ -2789,85 +3034,82 @@ def tt_card(c, xc, yc):
   ls.append((sn + " Seal", 4))
  if c.ed:
   ls.append(("Foil" if c.ed < 10 else "Holo", 12))
- # ancho en tiles segun la linea mas larga
- ml = len(nm)
- for l in ls:
-  if len(l[0]) > ml:
-   ml = len(l[0])
- ws = (ml * 4 + 6) // 8 + 1
- hb = len(ls)
- tx = xc + 8 - ws * 4
- ty = yc + 27
- th = (2 + hb) * 8
- # que no se salga de la pantalla (si no cabe debajo, va encima)
- if tx < 0:
-  tx = 0
- if tx + ws * 8 > 240:
-  tx = 240 - ws * 8
- if ty + th > 136:
-  ty = yc - th - 2
- if ty < 0:
-  ty = 0
- PrintBox(7, tx, ty, ws, 2 + len(ls))
- draw_text(nm, tx + (ws * 8 - len(nm) * 4) // 2 + 3, ty + 2, 11)
- PrintBox(5, tx + 4, ty + 7, ws - 1, hb + 1)
- for j in range(hb):
-  draw_text(ls[j][0], tx + 9, ty + 11 + j * 9, ls[j][1])
+ dibujar_tooltip(nm, ls, xc, yc, False)
+
+
+def num_txt(v):
+ # Numero para un texto: 2.0 -> "2", 1.5 -> "1.5", 1.234 -> "1.23"
+ if type(v) is float:
+  v = round(v, 2)
+  if v == int(v):
+   v = int(v)
+ return str(v)
+
+
+def rellenar_desc(t, d):
+ # Cambia {1} {2} {3} de una linea de JDESC por d[2] d[3] d[4].
+ for k in range(1, 4):
+  tok = "{" + str(k) + "}"
+  if tok in t:
+   t = t.replace(tok, num_txt(d[k + 1]))
+ return t
+
+
+# Familias cuyo valor cambia durante la partida: su tooltip dice cuanto
+# aportan ahora (como el "Currently" de Balatro).
+JOKER_VIVO = (F_STENCIL, F_CHIP_DISC, F_NJOK_M, F_BULL, F_BOOTS, F_DECK_C,
+              F_XMUL_PER_EF, F_STICKY_M, F_STICKY_C, F_FCHP_DEC, F_FMUL_DEC,
+              F_RAMEN, F_VAMP, F_LUCKY)
+
+
+def joker_actual(j):
+ # "(CURRENTLY +12 MULT)" con lo que aporta ahora (joker_aporte), o "".
+ if JDEFS[j.id][1] not in JOKER_VIVO:
+  return ""
+ r = "(CURRENTLY"
+ for tipo, v in joker_aporte(j):
+  if tipo == "chip":
+   r += " ~c+" + num_txt(v) + " CHIPS~n"
+  elif tipo == "mult":
+   r += " ~m+" + num_txt(v) + " MULT~n"
+  elif tipo == "xmult":
+   r += " ~xX" + num_txt(v) + " MULT~n"
+ return r + ")"
 
 
 def tt_joker(j, xj, yj):
- # Tooltip de un joker: nombre y descripcion (joker_value_text).
- nm = JDEFS[j.id][0].upper()
- dsc = joker_value_text(j)
- lns = [nm]
- if dsc:
-  lns.append(dsc)
- ml = 0
- for ln in lns:
-  if len(ln) > ml:
-   ml = len(ln)
- ws = (ml * 4 + 6) // 8 + 1
- tx = xj + 8 - ws * 4
- ty = yj + 28
- if tx < 0:
-  tx = 0
- if tx + ws * 8 > 240:
-  tx = 240 - ws * 8
- PrintBox(7, tx, ty, ws, len(lns) + 1)
- PrintBox(5, tx + 4, ty + 7, ws - 1, len(lns))
- for k in range(len(lns)):
-  ln = lns[k]
-  draw_text(ln, tx + (ws * 8 - len(ln) * 4) // 2 + 2, ty + 2 + k * 9, 11)
+ # Tooltip de un joker: nombre, descripcion (JDESC), lo que aporta ahora
+ # si va cambiando, y rareza. Sin JDESC usa el texto corto de JVT.
+ d = JDEFS[j.id]
+ lineas = []
+ desc = JDESC.get(j.id)
+ if desc is None:
+  desc = (joker_value_text(j),)
+ for t in desc:
+  lineas.append((rellenar_desc(t, d), TT_TXT))
+ ahora = joker_actual(j)
+ if ahora != "":
+  lineas.append((ahora, TT_TXT))
+ lineas.append(RAREZA_TXT[JRAR.get(j.id, 0)])
+ dibujar_tooltip(d[0].upper(), lineas, xj, yj + 1, True)
 
 
 def tt_planeta(p, xc, yc):
- # Tooltip de un planeta: salto de nivel, fichas y mult por nivel, y la
- # mano que sube.
+ # Tooltip de un planeta: que mano sube, cuanto, y como esta la mano
+ # ahora (nivel, fichas x mult).
  d = PLANETS[p.id]
- hd = HAND_DEF[d[1]]
- lv = gs["hl"][d[1]]
- nm = d[0]
- l1 = "LVL " + str(lv) + ">" + str(lv + 1)
- l2 = "+" + str(hd[3]) + "F"
- l3 = "+" + str(hd[4]) + "M"
- l4 = hd[0]
- ls = [(l1, 11), (l2, 6), (l3, 3), (l4, 15)]
- ml = len(nm)
- for l in ls:
-  if len(l[0]) > ml:
-   ml = len(l[0])
- ws = (ml * 4 + 6) // 8 + 1
- tx = xc + 8 - ws * 4
- ty = yc + 27
- if tx < 0:
-  tx = 0
- if tx + ws * 8 > 240:
-  tx = 240 - ws * 8
- PrintBox(7, tx, ty, ws, 2 + len(ls))
- draw_text(nm, tx + (ws * 8 - len(nm) * 4) // 2 + 3, ty + 2, 11)
- PrintBox(5, tx + 4, ty + 7, ws - 1, len(ls) + 1)
- for k in range(len(ls)):
-  draw_text(ls[k][0], tx + 9, ty + 11 + k * 9, ls[k][1])
+ hi = d[1]
+ hd = HAND_DEF[hi]
+ lv = gs["hl"][hi]
+ sc = hand_score(hi)
+ ch = sc[1]
+ mu = sc[2]
+ lineas = [
+  ("LEVEL UP ~o" + hd[0], TT_TXT),
+  ("~m+" + str(hd[4]) + " MULT~n AND ~c+" + str(hd[3]) + " CHIPS", TT_TXT),
+  ("LVL " + str(lv) + ": ~c" + str(ch) + "~n X ~m" + str(mu), TT_TXT),
+ ]
+ dibujar_tooltip(d[0], lineas, xc, yc, True)
 
 
 # =============================================================================
@@ -2897,7 +3139,7 @@ def draw_money_box():
 def draw_score_hud(permitir):
  # Bloque central del HUD: nombre de la mano, su nivel y las cajas de
  # fichas (azul) y mult (rojo).
- #   - Puntuando (fase > 0): muestra los acumuladores tot_chips / tot_mult.
+ #   - Puntuando (fase > FP_ELEGIR): muestra los acumuladores tot_chips / tot_mult.
  #   - Eligiendo cartas (permitir): vista previa de la mano seleccionada.
  ox_c, oy_c = shake_offset(gs["shake_chips"], 15, 2, 1, 4)
  ox_m, oy_m = shake_offset(gs["shake_mult"], 15, 2, 1, 4)
@@ -2912,7 +3154,7 @@ def draw_score_hud(permitir):
  PrintBox(0, 8 + int(ox_c), 52 + int(oy_c), 3, 2)
  PrintBox(1, 41 + int(ox_m), 52 + int(oy_m), 3, 2)
  spr(242, 32, 57, 0)  # la "x" entre fichas y mult
- if gs["fase_puntos"] > 0:
+ if gs["fase_puntos"] > FP_ELEGIR:
   tc = int(gs["tot_chips"])
   tm = int(gs["tot_mult"])
   PrintBox(0, 8 + int(ox_c), 52 + int(oy_c), 3, 2)
@@ -2926,7 +3168,7 @@ def draw_score_hud(permitir):
     lvtxt = "lvl " + str(gs["hl"][hi])
     draw_text(lvtxt, 36 - int(((len(lvtxt) / 2) * 4 - 2)), 44, 11)
  if permitir:
-  sel = [c for c in gs["hand"] if c.sel]
+  sel = cartas_seleccionadas()
   if len(sel) > 0:
    hi, _ = detectar_mano(sel)
    nm, cb, mb = hand_score(hi)
@@ -2977,9 +3219,9 @@ def draw_contadores(oy, con_mazo):
  # Contadores de huecos: jokers "n/5" (arriba izq.), consumibles "n/2"
  # (arriba der.) y, si con_mazo, cartas del mazo "n/52" (abajo der.).
  draw_text(str(len(gs["jokers"])) + "/" + str(gs["jslots"]), 82, 29 + oy, 11)
- draw_text(str(len(gs["consu"])) + "/2", 223, 29 + oy, 11)
+ draw_text(str(len(gs["consu"])) + "/" + str(MAX_CONSU), 223, 29 + oy, 11)
  if con_mazo:
-  draw_text(str(len(gs["baraja"].cartas)) + "/52", 217, 128 + oy, 11)
+  draw_text(str(len(gs["baraja"].cartas)) + "/52", MAZO_X + 1, MAZO_Y + 24 + oy, 11)
 
 
 def draw_cash_out(oy):
@@ -3011,7 +3253,7 @@ def draw_cash_out(oy):
  if nh > 10:
   nh = 10
  draw_text("$" * nh, px + pw - nh * 4 - 3, py + 30, 9)
- # descartes restantes (baraja 2) o interes (el resto)
+ # descartes restantes (baraja verde) o interes (el resto)
  yl = py + 40
  if gs["co_disc"] > 0:
   draw_text(str(gs["co_disc"]), px, yl, 2)
@@ -3037,16 +3279,16 @@ def draw_cash_out(oy):
 # =============================================================================
 #  24. PANTALLAS
 # =============================================================================
-# Una funcion por pantalla, elegida en TIC() segun gs["gm"]. Cada pantalla
+# Una funcion por pantalla, elegida en TIC() segun gs["gm"] (GM_*). Cada pantalla
 # dibuja y procesa el raton en la misma pasada: se pinta un boton y justo
 # despues se mira si lo han pulsado.
 
 # -----------------------------------------------------------------------------
-#  gm 0: MENU
+#  GM_MENU
 # -----------------------------------------------------------------------------
 def nueva_partida():
  # Deja todo listo para empezar con la baraja elegida en el menu.
- gs["fase_puntos"] = 0
+ gs["fase_puntos"] = FP_ELEGIR
  gs["rs"] = 0
  gs["ant"] = 1
  gs["rd"] = 1
@@ -3062,7 +3304,7 @@ def nueva_partida():
  gs["co_wait"] = 0
  gs["hl"] = [1] * 12
  gs["hp"] = [False] * 12
- gs["sel_joker"] = -1
+ sel_joker_pon(-1)
  gs["sel_consu"] = -1
  gs["pack"] = None
  gs["baraja"].generar_mazo()
@@ -3071,7 +3313,7 @@ def nueva_partida():
  gs["jslots"] = joker_slots()
  gs["hd"] = base_hands()
  gs["ds"] = base_discards()
- gs["jokers"] = [Joker(43)]  #DBG joker de prueba (43 = Ice Cream); dejar [] para la version final
+ gs["jokers"] = []
  gs["hand"] = []
  gs["b"] = []
  gs["consu"] = []
@@ -3100,25 +3342,20 @@ def PantallaMenu(raton):
  # Baraja elegida con su descripcion, y botones < play >
  gs["baraja"].mostrar(64, 64, 2, True, 102, 70)
  prev_DS = gs["DS"]
- btn_prev = Boton(" <", 1, 100, 95, 3, 2, True)
- btn_prev.pintar()
- if btn_prev.clicado() and not gs["Clk0"]:
-  gs["DS"] = (gs["DS"] + 7) % 8
- btn_next = Boton(" >", 0, 150, 95, 3, 2, True)
- btn_next.pintar()
- if btn_next.clicado() and not gs["Clk0"]:
-  gs["DS"] = (gs["DS"] + 1) % 8
+ nb = len(DECK_INFO)
+ if boton_clic(" <", 1, 100, 95, 3, 2):
+  gs["DS"] = (gs["DS"] + nb - 1) % nb
+ if boton_clic(" >", 0, 150, 95, 3, 2):
+  gs["DS"] = (gs["DS"] + 1) % nb
  if gs["DS"] != prev_DS:
   gs["baraja"] = Mazo(gs["DS"])
- play = Boton("play", 4, 125, 95, 3, 2, True)
- play.pintar()
- if play.clicado() and not gs["Clk0"]:
+ if boton_clic("play", 4, 125, 95, 3, 2):
   nueva_partida()
-  gs["gm"] = 4  # primero se elige ciega
+  gs["gm"] = GM_CIEGAS  # primero se elige ciega
 
 
 # -----------------------------------------------------------------------------
-#  gm 1: JUEGO
+#  GM_JUEGO
 # -----------------------------------------------------------------------------
 # Botones de abajo. Se mueven con la zona de la mano ('up' al empezar y
 # 'voff' al subir al cash out).
@@ -3126,10 +3363,9 @@ def PantallaMenu(raton):
 def handle_discard(up):
  # Boton "discard": tira las cartas seleccionadas y repone la mano.
  voff = gs["voff"]
- disc = Boton("discard", 1, 145, 166 - up - voff, 4, 2, gs["fase_puntos"] == 0 and gs["ds"] > 0)
- disc.pintar()
- if gs["fase_puntos"] == 0 and disc.clicado() and not gs["Clk0"] and gs["ds"] > 0 and len(eval_hand()) > 0:
-  n_disc = len([c for c in gs["hand"] if c.sel])
+ activo = gs["fase_puntos"] == FP_ELEGIR and gs["ds"] > 0
+ if boton_clic("discard", 1, 145, BOT_Y - up - voff, 4, 2, activo) and activo and len(cartas_seleccionadas()) > 0:
+  n_disc = len(cartas_seleccionadas())
   gs["hand"] = [c for c in gs["hand"] if not c.sel]
   gs["baraja"].repartir()
   gs["ds"] -= 1
@@ -3158,18 +3394,17 @@ def handle_discard(up):
 
 def handle_play(up):
  # Boton "play": detecta la mano, prepara la puntuacion y arranca la cola
- # de eventos (fase 1).
+ # de eventos (FP_PUNTUAR).
  voff = gs["voff"]
- btn_play = Boton("play", 0, 95, 166 - up - voff, 4, 2, gs["fase_puntos"] == 0 and gs["hd"] > 0)
- btn_play.pintar()
- if gs["fase_puntos"] == 0 and btn_play.clicado() and not gs["Clk0"] and gs["hd"] > 0:
-  b = eval_hand()
+ activo = gs["fase_puntos"] == FP_ELEGIR and gs["hd"] > 0
+ if boton_clic("play", 0, 95, BOT_Y - up - voff, 4, 2, activo) and activo:
+  b = cartas_seleccionadas()
   if len(b) > 0:
    # las Stone no cuentan para formar la mano, pero siempre puntuan
-   hi, sc = detectar_mano([c for c in b if c.ef != 6])
+   hi, sc = detectar_mano([c for c in b if c.ef != EF_STONE])
    if hi < 0:
     hi = H_HC
-   sc = sc + [c for c in b if c.ef == 6]
+   sc = sc + [c for c in b if c.ef == EF_STONE]
    nm, cb, mb = hand_score(hi)
    gs["hp"][hi] = True  # mano descubierta (para los planetas secretos)
    if splash_active():
@@ -3182,13 +3417,13 @@ def handle_play(up):
    gs["tot_mult"] = mb
    # FIX: sin las Stone, igual que detectar_mano. Antes una Stone podia
    # "formar" pareja o color para los jokers de tipo de mano.
-   gs["mano_flags"] = calcular_mano_flags([c for c in b if c.ef != 6])
+   gs["mano_flags"] = calcular_mano_flags([c for c in b if c.ef != EF_STONE])
    update_sticky(b, sc, gs["mano_flags"])
    gs["ev_queue"] = build_event_queue(sc)
    gs["ev_idx"] = 0
    gs["ev_timer"] = 0
    gs["active_joker_idx"] = -1
-   gs["fase_puntos"] = 1
+   gs["fase_puntos"] = FP_PUNTUAR
    gs["shake_nombre"] = 22
    gs["hd"] -= 1  # se resta DESPUES de montar la cola (ver count_retriggers)
    for c in b:
@@ -3199,16 +3434,14 @@ def handle_sort(up):
  # Boton "Rango" / "Palo": cambia el orden de la mano.
  voff = gs["voff"]
  lbl = "Rango" if gs["sort_mode"] == 0 else "Palo"
- act = gs["fase_puntos"] == 0
- btn = Boton(lbl, 3, 180, 166 - up - voff, 3, 2, act)
- btn.pintar()
- if act and btn.clicado() and not gs["Clk0"]:
+ act = gs["fase_puntos"] == FP_ELEGIR
+ if boton_clic(lbl, 3, 180, BOT_Y - up - voff, 3, 2, act) and act:
   gs["sort_mode"] = 1 - gs["sort_mode"]
   sort_hand()
 
 
 def draw_tapete(yt):
- # Tapete donde va la mano: 14 tiles de ancho x 3 de alto desde (80, yt).
+ # Tapete donde va la mano: 14 tiles de ancho x 3 de alto desde (MANO_X0, yt).
  spr(189, 80, yt)
  spr(190, 80, yt + 8)
  spr(206, 80, yt + 16)
@@ -3231,24 +3464,24 @@ def PantallaJuego(raton):
  voff = gs["voff"]
  fp = gs["fase_puntos"]
  map(60, 17, 30, 17, 0, -voff)
- if fp >= 2:
+ if fp >= FP_SUBIR:
   map(60, 0, 30, 17, 0, SCREEN_H - voff)
  # la zona de la mano sube al empezar (up de 0 a 50)
  gs["up"] = counter(0, gs["up"], 50, 1, False)
  up = gs["up"]
- draw_tapete(140 - up - voff)
- permitir_interaccion = (fp == 0)
+ draw_tapete(MANO_Y - up - voff)
+ permitir_interaccion = (fp == FP_ELEGIR)
 
  # contadores: cartas en mano / tamano de mano, y huecos
- draw_text(str(len(gs["hand"])) + "/" + str(gs["hs"]), 82, 162 - up - voff, 11)
+ draw_text(str(len(gs["hand"])) + "/" + str(gs["hs"]), MANO_X0 + 2, MANO_Y + 22 - up - voff, 11)
  draw_contadores(-voff, True)
- if fp >= 2:
+ if fp >= FP_SUBIR:
   draw_contadores(SCREEN_H - voff, True)
 
  # jokers y consumibles (y su copia en la pantalla del cash out)
  print_jokers(-voff)
  print_consumibles(-voff)
- if fp >= 2:
+ if fp >= FP_SUBIR:
   print_jokers(SCREEN_H - voff)
   print_consumibles(SCREEN_H - voff)
 
@@ -3258,63 +3491,58 @@ def PantallaJuego(raton):
  handle_sort(up)
 
  # mazo (y su copia)
- gs["baraja"].mostrar(216, 104 - voff, 1, False, 0, 0)
- if fp >= 2:
-  gs["baraja"].mostrar(216, 104 + SCREEN_H - voff, 1, False, 0, 0)
- if fp == 0:
+ gs["baraja"].mostrar(MAZO_X, MAZO_Y - voff, 1, False, 0, 0)
+ if fp >= FP_SUBIR:
+  gs["baraja"].mostrar(MAZO_X, MAZO_Y + SCREEN_H - voff, 1, False, 0, 0)
+ if fp == FP_ELEGIR:
   check_mazo_click(raton)
  draw_sell_use_buttons(raton)
 
- # fase 1: animar la puntuacion. Las cartas jugadas suben de y = 83 a 53
- # durante E_RISE y se quedan en 53 el resto de la cola.
- if fp == 1:
+ # FP_PUNTUAR: animar la puntuacion. Las cartas jugadas suben de JUG_Y0
+ # a JUG_Y durante E_RISE y se quedan en JUG_Y el resto de la cola.
+ if fp == FP_PUNTUAR:
   update_event_visuals()
   q = gs["ev_queue"]
   if gs["ev_idx"] < len(q) and q[gs["ev_idx"]][0] == E_RISE:
    prog = gs["ev_timer"] / EDUR[E_RISE]
-   y = int(83 - prog * 30)
+   y = int(JUG_Y0 - prog * (JUG_Y0 - JUG_Y))
   else:
-   y = 53
-  print_cards(80, y, 80 + (len(gs["b"]) * 16), gs["b"], False)
+   y = JUG_Y
+  print_cards(MANO_X0, y, MANO_X0 + (len(gs["b"]) * 16), gs["b"], False)
   step_queue()
 
  # la mano va al final para que ninguna particula la tape
- print_cards(80, 140 - up - voff, 193, gs["hand"], permitir_interaccion)
+ print_cards(MANO_X0, MANO_Y - up - voff, MANO_XF, gs["hand"], permitir_interaccion)
  update_and_draw_particles()
 
- # fases 2 y 3: subida al cash out y espera del clic para cobrar
- if fp >= 2:
-  if fp == 2:
+ # FP_SUBIR y FP_COBRAR: subida al cash out y espera del clic para cobrar
+ if fp >= FP_SUBIR:
+  if fp == FP_SUBIR:
    if gs["co_wait"] > 0:
     gs["co_wait"] -= 1
    else:
     gs["voff"] += CASH_SPEED
     if gs["voff"] >= SCREEN_H:
      gs["voff"] = SCREEN_H
-     gs["fase_puntos"] = 3
+     gs["fase_puntos"] = FP_COBRAR
   draw_cash_out(SCREEN_H - gs["voff"])
-  if gs["fase_puntos"] == 3 and raton[2] and not gs["Clk0"]:
-   if raton[0] >= 97 and raton[0] < 193 and raton[1] >= 53 and raton[1] < 69:
-    collect_cash_out()
+  # clic en la barra naranja de draw_cash_out: cobrar
+  if gs["fase_puntos"] == FP_COBRAR and clic_nuevo() and raton_en(97, 53, 96, 16):
+   collect_cash_out()
 
 
 # -----------------------------------------------------------------------------
-#  gm 2: VISOR DEL MAZO
+#  GM_VISOR: VISOR DEL MAZO
 # -----------------------------------------------------------------------------
 def PantallaVisor(raton):
  # Estadisticas del mazo (por valor, por palo, ases/numeros/figuras) y las
  # cartas agrupadas por palo. Se puede ver el mazo "total" o lo que queda.
  cls()
  map(30, 18, 61, 35)
- total = Boton(gs["pal"], 0, 80, 118, 4, 2, True)
- total.pintar()
- if total.clicado() and gs["pal"] == "actual" and not gs["Clk0"]:
-  gs["pal"] = "total"
- elif total.clicado() and not gs["Clk0"]:
-  gs["pal"] = "actual"
+ if boton_clic(gs["pal"], 0, 80, 118, 4, 2):
+  gs["pal"] = "total" if gs["pal"] == "actual" else "actual"
  gs["baraja"].mostrar(12, 12, 2, False, 30, 65)
- bg1 = Boton(" ", 5, 59, 11, 21, 12, False)  # fondo del panel de cartas
- bg1.pintar()
+ PrintBox(5, 59, 11, 21, 12)  # fondo del panel de cartas
 
  # Las estadisticas se calculan solo cuando cambia la clave (vista, n cartas)
  cm = gs["baraja"].muestra(gs["pal"])
@@ -3376,12 +3604,12 @@ def PantallaVisor(raton):
  print_cards(60, 60, 227, tr, False)
  print_cards(60, 83, 227, co, False)
  # clic en el mazo grande: volver
- if raton[0] > 12 and raton[0] < 44 and raton[1] > 20 and raton[1] < 68 and raton[2] and not gs["Clk0"]:
+ if raton[0] > 12 and raton[0] < 44 and raton[1] > 20 and raton[1] < 68 and clic_nuevo():
   gs["gm"] = gs["visor_from"]
 
 
 # -----------------------------------------------------------------------------
-#  gm 3: TIENDA
+#  GM_TIENDA
 # -----------------------------------------------------------------------------
 def draw_shop_jslot(slot, x, y, raton):
  # Hueco principal de la tienda: precio arriba y el joker o planeta debajo.
@@ -3402,17 +3630,14 @@ def draw_shop_jslot(slot, x, y, raton):
  else:
   if not dibujar_joker(x, yj, it):
    draw_joker_box(x, yj, it)
- mx = raton[0]
- my = raton[1]
- hv = mx >= x and mx < x + 16 and my >= yj and my < yj + 24
- if hv:
+ if raton_en(x, yj, 16, 24):
   if tp == 1:
    gs["tt_target"] = ("planeta", it, x, yj)
-   if raton[2] and not gs["Clk0"]:
+   if clic_nuevo():
     buy_planeta(slot)
   else:
    gs["tt_target"] = ("joker", it, x, yj)
-   if raton[2] and not gs["Clk0"]:
+   if clic_nuevo():
     buy_joker(slot)
 
 
@@ -3431,16 +3656,14 @@ def draw_shop_pslot(slot, x, y, raton):
  nm = PACK_NAME[k]
  draw_text(nm, x + 8 - len(nm) * 2, y + 4, 11)
  draw_text("PACK", x + 8 - 8, y + 12, 15)
- mx = raton[0]
- my = raton[1]
- hv = mx >= x and mx < x + 16 and my >= y and my < y + 24
- if hv and raton[2] and not gs["Clk0"]:
+ if raton_en(x, y, 16, 24) and clic_nuevo():
   open_pack(slot)
 
 
 def draw_pack_picker(raton):
  # Selector del sobre abierto: opciones a tamano doble, clic = elegir,
- # boton "skip" = cerrar el sobre.
+ # boton "skip" = cerrar el sobre. Debajo de las opciones sale el aviso de
+ # pack_pick si lo hay.
  p = gs["pack"]
  if p is None:
   return
@@ -3448,12 +3671,14 @@ def draw_pack_picker(raton):
  draw_text(nm, 120 - len(nm) * 2, 16, 11)
  et = "Choose " + str(p["picks"])
  draw_text(et, 120 - len(et) * 2, 24, 15)
+ if gs["aviso_t"] > 0:
+  gs["aviso_t"] -= 1
+  av = gs["aviso"]
+  draw_text(av, 120 - len(av) * 2, 100, 8)
  ch = p["choices"]
  n = len(ch)
  if n > 0:
   bx = 120 - (n * 40) // 2 + 4  # opciones centradas, cada 40 px
-  mx = raton[0]
-  my = raton[1]
   for i in range(n):
    it = ch[i]
    xj = bx + i * 40
@@ -3464,15 +3689,12 @@ def draw_pack_picker(raton):
     spr(106, xj + 8, yj + 8, 0, 2, 0, 0, 1, 2)  # adorno del planeta
    elif not dibujar_joker(xj, yj, it, 2):
     draw_joker_box(xj, yj, it, 2)
-   hv = mx >= xj and mx < xj + 32 and my >= yj and my < yj + 48
-   if hv:
+   if raton_en(xj, yj, 32, 48):
     gs["tt_target"] = ("planeta" if isp else "joker", it, xj, yj + 24)
-    if raton[2] and not gs["Clk0"]:
+    if clic_nuevo():
      pack_pick(i)
      return
- sk = Boton("skip", 1, 156, 116, 4, 2, True)
- sk.pintar()
- if sk.clicado() and not gs["Clk0"]:
+ if boton_clic("skip", 1, 156, 116, 4, 2):
   pack_skip()
 
 
@@ -3483,11 +3705,13 @@ def PantallaTienda(raton):
  draw_contadores(0, True)
  print_jokers(0)
  print_consumibles(0)
- gs["baraja"].mostrar(216, 104, 1, False, 0, 0)
+ gs["baraja"].mostrar(MAZO_X, MAZO_Y, 1, False, 0, 0)
  check_mazo_click(raton)
- # con un sobre abierto solo se ve su selector
+ # con un sobre abierto solo se ve su selector (y los botones de vender y
+ # usar, para poder hacer hueco antes de elegir)
  if gs["pack"] is not None:
   draw_pack_picker(raton)
+  draw_sell_use_buttons(raton)
   return
  # fondos de los bloques
  PrintBox(5, 130, 46, 9, 5)
@@ -3495,18 +3719,14 @@ def PantallaTienda(raton):
  PrintBox(5, 86, 88, 7, 5)
  PrintBox(5, 90, 92, 6, 4)
  # izquierda: "next" y "reroll"
- nr = Boton("next", 1, 87, 48, 5, 2, True)
- nr.pintar()
- if nr.clicado() and not gs["Clk0"]:
+ if boton_clic("next", 1, 87, 48, 5, 2):
   shop_next_round()
  if gs["free_rr"] > 0:
   rlbl = "free"
  else:
   rlbl = "$" + str(gs["reroll"])
  act = gs["free_rr"] > 0 or gs["mn"] >= gs["reroll"]
- rr = Boton(rlbl, 0, 87, 69, 5, 2, act)
- rr.pintar()
- if act and rr.clicado() and not gs["Clk0"]:
+ if boton_clic(rlbl, 0, 87, 69, 5, 2, act) and act:
   do_reroll()
  draw_text("reroll", 98, 84, 11)
  # derecha: 2 huecos principales arriba y 2 sobres abajo
@@ -3518,7 +3738,7 @@ def PantallaTienda(raton):
 
 
 # -----------------------------------------------------------------------------
-#  gm 4: SELECCION DE CIEGA
+#  GM_CIEGAS: SELECCION DE CIEGA
 # -----------------------------------------------------------------------------
 def blind_panel(bi, x, y, raton):
  # Panel de la ciega bi (0 pequena, 1 grande, 2 jefe): circulo de color,
@@ -3532,17 +3752,13 @@ def blind_panel(bi, x, y, raton):
  draw_text(str(req), x + 27 - len(str(req)) * 2, y + 48, 2)
  rw = BLIND_REWARD[bi]
  if sel:
-  bt = Boton("play", 4, x + 9, y + 58, 4, 2, True)
-  bt.pintar()
-  if bt.clicado() and not gs["Clk0"]:
+  if boton_clic("play", 4, x + 9, y + 58, 4, 2):
    start_blind()
  else:
   draw_text("$" * rw, x + 27 - rw * 2, y + 62, 8)
 
 
 def PantallaBlind(raton):
- # FIX: en la copia del codigo que me pasaste faltaba el nombre ("def (raton):");
- # en el cartucho Bitlatro0.9.tic si estaba bien.
  cls()
  map(90, 17, 30, 17)
  draw_side_hud(False)
@@ -3556,17 +3772,15 @@ def PantallaBlind(raton):
 
 
 # -----------------------------------------------------------------------------
-#  gm 5: GAME OVER
+#  GM_GAMEOVER
 # -----------------------------------------------------------------------------
 def PantallaGameOver(raton):
  cls(0)
  draw_text("GAME OVER", 106, 40, 2)
  draw_text("ANTE " + str(gs["ant"]) + " RONDA " + str(gs["rd"]), 100, 56, 11)
  draw_text("$" + str(gs["mn"]), 114, 68, 9)
- bt = Boton("menu", 4, 102, 90, 4, 2, True)
- bt.pintar()
- if bt.clicado() and not gs["Clk0"]:
-  gs["gm"] = 0
+ if boton_clic("menu", 4, 102, 90, 4, 2):
+  gs["gm"] = GM_MENU
   gs["hand"] = []
   gs["b"] = []
   gs["jokers"] = []
@@ -3584,21 +3798,29 @@ gs["baraja"] = Mazo(gs["DS"])
 def TIC():
  # TIC-80 llama a esta funcion 60 veces por segundo.
  gs["tt_target"] = None  # las pantallas lo rellenan si hay que pintar un tooltip
+ gs["arrastre"] = None   # y este si se esta arrastrando una carta o un joker
  raton = mouse()         # (x, y, boton_izquierdo, ...)
  gm = gs["gm"]
- if gm == 0:
+ if gm == GM_MENU:
   PantallaMenu(raton)
- elif gm == 1:
+ elif gm == GM_JUEGO:
   PantallaJuego(raton)
- elif gm == 2:
+ elif gm == GM_VISOR:
   PantallaVisor(raton)
- elif gm == 3:
+ elif gm == GM_TIENDA:
   PantallaTienda(raton)
- elif gm == 4:
+ elif gm == GM_CIEGAS:
   PantallaBlind(raton)
- elif gm == 5:
+ elif gm == GM_GAMEOVER:
   PantallaGameOver(raton)
- # el tooltip se pinta al final para que quede por encima de todo
+ # lo arrastrado y el tooltip se pintan al final para quedar por encima
+ # de todo
+ ar = gs["arrastre"]
+ if ar:
+  if ar[0] == "carta":
+   draw_card_at(ar[1], ar[2], ar[3])
+  elif not dibujar_joker(ar[2], ar[3], ar[1]):
+   draw_joker_box(ar[2], ar[3], ar[1])
  tt = gs["tt_target"]
  if tt:
   if tt[0] == "card":

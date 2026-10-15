@@ -19,6 +19,30 @@ game stays below 1.0 until it is complete.
 > versions use short names, 1-space indentation and almost no comments. v0.5.0
 > is the first one made with TIC-80 PRO.
 
+## v0.5.1 — 2026-10-15 — Descriptions, cleanup and fixes
+
+- **New tooltips**: each of the 93 jokers has a Balatro-style description,
+  with colors for chips, mult, money and keywords, its rarity and, for jokers
+  that change over the run, what they give right now ("CURRENTLY"). The
+  planet tooltip shows which hand it levels up, by how much, and the hand's
+  current level. Cards, jokers and planets share the same look and never go
+  off-screen.
+- Cards and jokers being dragged are always drawn on top (they used to end up
+  behind text, blinds and the shop).
+- Packs with full slots: the picked joker or planet used to be lost. Now a
+  warning shows up and the pack stays open, so you can sell jokers or
+  use/sell planets to make room.
+- Bug fixes: when a joker was destroyed or moved, the selection jumped to the
+  one next to it; the Yellow Deck gave $10 in total instead of $10 extra
+  ($14); every run started with a test Ice Cream.
+- Cleaner code with the same gameplay: named constants (`EF_*`, `BAR_*`,
+  `GM_*`, `FP_*` and the UI coordinates), helpers for buttons and clicks
+  (`boton_clic`, `raton_en`, `clic_nuevo`, `jokers_de`), a single function
+  for what each joker gives (`joker_aporte`) and a single hand analysis
+  (`analizar_cartas`).
+- Tested in the TIC-80 emulator and with a bot playing full runs on the
+  pocketpy builds of TIC-80 1.1 and 1.3.
+
 ## v0.5.0 — 2026-10-08 — Readable rewrite with TIC-80 PRO
 
 - First version made with **TIC-80 PRO**: the code no longer has to fit in one

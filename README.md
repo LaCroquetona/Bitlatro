@@ -21,7 +21,7 @@ All the pixel art and music are original.
 ## Features
 
 - **8 decks**, each with its own rule twist (extra discard, extra hand,
-  no-interest economy deck, $10 start, +1 joker slot / −1 hand, two-suit deck,
+  no-interest economy deck, $10 extra to start, +1 joker slot / −1 hand, two-suit deck,
   ranks 1–10 only, fully randomized ranks).
 - **93 jokers**, all from the real game (75 faithful, 18 still with a
   placeholder effect), across common / uncommon / rare rarities: flat and
@@ -38,7 +38,8 @@ All the pixel art and music are original.
   that scale beyond the base 8, and a full cash-out with interest.
 - **Juicy presentation**: event-queue scoring animation, floating
   chip/mult/×mult/money particles, damped shake, drag-and-drop for cards and
-  jokers, and a deck viewer with live suit/rank stats.
+  jokers, Balatro-style tooltips describing every joker and planet, and a deck
+  viewer with live suit/rank stats.
 
 ## How to play
 
@@ -84,8 +85,8 @@ sections with an index at the top:
 | Jokers | `JDEFS` definitions, `F_*` effect families, `JRAR` / `JPOOL` rarities, `JSPR` sprites |
 | Entities | `Carta` (card), `Joker`, `Planeta`, `Mazo` (deck) |
 | Rendering | `draw_card_at`, `print_cards`, `dibujar_joker`, `dibujar_planeta`, tooltips, `PrintBox` / `Boton`, particles |
-| Hand logic | `detectar_mano`, `hand_score`, `calcular_mano_flags` |
-| Scoring pipeline | `build_event_queue`, `step_queue`, `apply_event`, `apply_joker_effect`, `apply_card_ef` |
+| Hand logic | `analizar_cartas`, `detectar_mano`, `hand_score`, `calcular_mano_flags` |
+| Scoring pipeline | `build_event_queue`, `step_queue`, `apply_event`, `joker_aporte`, `apply_joker_effect`, `apply_card_ef` |
 | Economy / shop | `roll_shop`, `buy_joker`, `buy_planeta`, `open_pack`, `pack_pick`, `cash_out_money` |
 | Screens (`gm`) | `PantallaMenu` (0), `PantallaJuego` (1), `PantallaVisor` (2), `PantallaTienda` (3), `PantallaBlind` (4), `PantallaGameOver` (5) |
 | Entry point | `TIC()` |
@@ -126,6 +127,7 @@ full log is in the [CHANGELOG](CHANGELOG.md).
 | `v0.4.0` | Jun 2026 | Planets, hand levels, 12 hands and selling jokers |
 | `v0.4.1` | Jun 2026 | Card enhancements in scoring and 123 jokers |
 | `v0.5.0` | Oct 2026 | TIC-80 PRO rewrite: readable code, only real jokers (93) |
+| `v0.5.1` | Oct 2026 | Joker and planet descriptions, cleaner code and fixes |
 
 ## Roadmap
 

@@ -22,7 +22,7 @@ Todo el pixel art y la música son originales.
 ## Características
 
 - **8 barajas**, cada una con su regla (descarte extra, mano extra, baraja de
-  economía sin intereses, empezar con $10, +1 hueco de joker / −1 mano, baraja
+  economía sin intereses, $10 extra al empezar, +1 hueco de joker / −1 mano, baraja
   de dos palos, solo del 1 al 10, rangos aleatorios).
 - **93 jokers**, todos del juego real (75 fieles y 18 con un efecto
   provisional), en rarezas común / poco común / rara: mult plano y ×mult, por
@@ -38,7 +38,8 @@ Todo el pixel art y la música son originales.
   que escalan más allá de los 8 base y un *cash out* con intereses.
 - **Presentación con chicha**: puntuación animada por cola de eventos,
   partículas de fichas/mult/×mult/dinero, shake amortiguado, arrastrar y soltar
-  cartas y jokers, y un visor del mazo con estadísticas en vivo.
+  cartas y jokers, tooltips estilo Balatro con la descripción de cada joker y
+  planeta, y un visor del mazo con estadísticas en vivo.
 
 ## Cómo se juega
 
@@ -87,8 +88,8 @@ comentadas con un índice al principio:
 | Jokers | definiciones `JDEFS`, familias de efecto `F_*`, rarezas `JRAR` / `JPOOL`, sprites `JSPR` |
 | Entidades | `Carta`, `Joker`, `Planeta`, `Mazo` |
 | Dibujo | `draw_card_at`, `print_cards`, `dibujar_joker`, `dibujar_planeta`, tooltips, `PrintBox` / `Boton`, partículas |
-| Lógica de manos | `detectar_mano`, `hand_score`, `calcular_mano_flags` |
-| Puntuación | `build_event_queue`, `step_queue`, `apply_event`, `apply_joker_effect`, `apply_card_ef` |
+| Lógica de manos | `analizar_cartas`, `detectar_mano`, `hand_score`, `calcular_mano_flags` |
+| Puntuación | `build_event_queue`, `step_queue`, `apply_event`, `joker_aporte`, `apply_joker_effect`, `apply_card_ef` |
 | Economía / tienda | `roll_shop`, `buy_joker`, `buy_planeta`, `open_pack`, `pack_pick`, `cash_out_money` |
 | Pantallas (`gm`) | `PantallaMenu` (0), `PantallaJuego` (1), `PantallaVisor` (2), `PantallaTienda` (3), `PantallaBlind` (4), `PantallaGameOver` (5) |
 | Punto de entrada | `TIC()` |
@@ -131,6 +132,7 @@ el detalle completo está en el [CHANGELOG](CHANGELOG.es.md).
 | `v0.4.0` | jun 2026 | Planetas, niveles de mano, 12 manos y vender jokers |
 | `v0.4.1` | jun 2026 | Mejoras de carta en la puntuación y 123 jokers |
 | `v0.5.0` | oct 2026 | Reescritura con TIC-80 PRO: código legible y solo jokers reales (93) |
+| `v0.5.1` | oct 2026 | Descripciones de jokers y planetas, código más limpio y arreglos |
 
 ## Hoja de ruta
 
